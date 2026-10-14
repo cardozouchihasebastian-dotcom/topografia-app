@@ -53,9 +53,11 @@ public class EquipoDAO {
                         "fecha_traslado TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                         "motivo TEXT);");
 
+                // Crear usuario sebastian
                 stmt.execute("INSERT INTO usuarios (username, password, nombre_completo, empresa) " +
                         "VALUES ('sebastian', '1234', 'Sebastian C.', 'Topografia General') " +
                         "ON CONFLICT (username) DO NOTHING;");
+
             } else {
                 stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (" +
                         "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -94,11 +96,51 @@ public class EquipoDAO {
                         "VALUES (1, 'sebastian', '1234', 'Sebastian C.', 'Topografia General');");
             }
 
-            System.out.println(">>> TABLAS CREADAS CORRECTAMENTE" + (esPostgres ? " (PostgreSQL)" : " (SQLite)"));
+            // Inyectar datos iniciales si no existen
+            precargarDatosIniciales(conn);
+
+            System.out.println(">>> BASE DE DATOS Y EQUIPOS INICIALIZADOS CORRECTAMENTE");
 
         } catch (Exception e) {
-            System.err.println(">>> ERROR AL CREAR TABLAS:");
+            System.err.println(">>> ERROR AL CREAR TABLAS O INICIALIZAR:");
             e.printStackTrace();
+        }
+    }
+
+    private void precargarDatosIniciales(Connection conn) {
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM equipos")) {
+            if (rs.next() && rs.getInt(1) == 0) {
+                // Obtener ID del usuario sebastian
+                int uId = 1;
+                try (ResultSet rsU = stmt.executeQuery("SELECT id FROM usuarios WHERE username = 'sebastian'")) {
+                    if (rsU.next()) uId = rsU.getInt("id");
+                }
+
+                // 1. Frentes Iniciales
+                stmt.execute("INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES " +
+                        "(" + uId + ", 'Tramo Central Km 12', 'Sector Norte')," +
+                        "(" + uId + ", 'Puente Río Claro', 'Sector Sur')," +
+                        "(" + uId + ", 'Túnel La Línea Acceso', 'Sector Cordillera')," +
+                        "(" + uId + ", 'Plataforma Parque Logístico', 'Zona Industrial')," +
+                        "(" + uId + ", 'Campamento Base', 'Almacén Central');");
+
+                // 2. Equipos Reales Topográficos
+                stmt.execute("INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, frente_id, fecha_vencimiento_calibracion) VALUES " +
+                        "(" + uId + ", 'TG-98214', 'Topcon', 'GTS-235W', 'ESTACION_TOTAL', 'DISPONIBLE', 1, '2026-12-15')," +
+                        "(" + uId + ", 'RD-4401', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 2, '2026-11-20')," +
+                        "(" + uId + ", 'RD-4402', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 1, '2026-11-20')," +
+                        "(" + uId + ", 'RD-4403', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 3, '2026-11-20')," +
+                        "(" + uId + ", 'RD-4404', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 4, '2026-10-30')," +
+                        "(" + uId + ", 'RD-4405', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 5, '2026-10-30')," +
+                        "(" + uId + ", 'RD-5510', 'Ruide', 'RL-C33', 'NIVEL_OPTICO', 'DISPONIBLE', 2, '2026-12-01')," +
+                        "(" + uId + ", 'HT-8820', 'Hi-Target', 'B60', 'GPS_DIFERENCIAL', 'DISPONIBLE', 3, '2027-01-15')," +
+                        "(" + uId + ", 'HT-9930', 'Hi-Target', 'B300', 'GPS_DIFERENCIAL', 'DISPONIBLE', 1, '2027-02-10');");
+
+                System.out.println(">>> DATOS REALES CARGADOS EXITOSAMENTE");
+            }
+        } catch (Exception e) {
+            System.err.println(">>> AVISO PRECARGA: " + e.getMessage());
         }
     }
 
