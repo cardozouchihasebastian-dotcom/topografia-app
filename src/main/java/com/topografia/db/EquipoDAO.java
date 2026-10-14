@@ -53,7 +53,6 @@ public class EquipoDAO {
                         "fecha_traslado TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                         "motivo TEXT);");
 
-                // Crear usuario sebastian
                 stmt.execute("INSERT INTO usuarios (username, password, nombre_completo, empresa) " +
                         "VALUES ('sebastian', '1234', 'Sebastian C.', 'Topografia General') " +
                         "ON CONFLICT (username) DO NOTHING;");
@@ -96,52 +95,165 @@ public class EquipoDAO {
                         "VALUES (1, 'sebastian', '1234', 'Sebastian C.', 'Topografia General');");
             }
 
-            // Inyectar datos iniciales si no existen
-            precargarDatosIniciales(conn);
-
-            System.out.println(">>> BASE DE DATOS Y EQUIPOS INICIALIZADOS CORRECTAMENTE");
+            System.out.println(">>> TABLAS VERIFICADAS/CREADAS CORRECTAMENTE");
 
         } catch (Exception e) {
-            System.err.println(">>> ERROR AL CREAR TABLAS O INICIALIZAR:");
+            System.err.println(">>> ERROR AL CREAR TABLAS:");
             e.printStackTrace();
+            return; // Si fallan las tablas, no seguimos con la precarga
+        }
+
+        // ✅ La precarga se maneja en su propia conexión/transacción
+        precargarDatosIniciales();
+    }
+
+    /**
+     * 🔒 PRECARGA SEGURA Y TRANSACCIONAL
+     * - Verifica AMBAS tablas (frentes Y equipos) antes de insertar
+     * - Usa una ÚNICA transacción: si algo falla, TODO se revierte (rollback)
+     * - Captura los IDs reales generados con RETURNING / getGeneratedKeys()
+     * - Registra el stack trace completo en caso de error (visible en logs de Render)
+     */
+    private void precargarDatosIniciales() {
+        Connection conn = null;
+        try {
+            conn = DatabaseManager.getConnection();
+            conn.setAutoCommit(false); // 🔑 Clave: iniciamos transacción manual
+
+            // 1️⃣ Verificación robusta: chequeamos frentes Y equipos
+            int totalFrentes = contarFilas(conn, "frentes_obra");
+            int totalEquipos = contarFilas(conn, "equipos");
+
+            if (totalFrentes > 0 || totalEquipos > 0) {
+                System.out.println(">>> PRECARGA OMITIDA: ya existen datos " +
+                        "(frentes=" + totalFrentes + ", equipos=" + totalEquipos + ")");
+                conn.rollback(); // no hicimos nada, pero cerramos limpio
+                return;
+            }
+
+            // 2️⃣ Obtener ID real del usuario sebastian
+            int uId = obtenerIdUsuario(conn, "sebastian");
+            if (uId == -1) {
+                System.err.println(">>> ERROR: no se encontró el usuario 'sebastian', se aborta precarga");
+                conn.rollback();
+                return;
+            }
+
+            // 3️⃣ Insertar FRENTES y capturar sus IDs REALES generados
+            String[][] frentesData = {
+                {"Tramo Central Km 12", "Sector Norte"},
+                {"Puente Río Claro", "Sector Sur"},
+                {"Túnel La Línea Acceso", "Sector Cordillera"},
+                {"Plataforma Parque Logístico", "Zona Industrial"},
+                {"Campamento Base", "Almacén Central"}
+            };
+
+            Map<Integer, Integer> frenteIds = new HashMap<>(); // índice -> ID real
+
+            String sqlFrente = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (?, ?, ?)";
+            try (PreparedStatement ps = conn.prepareStatement(sqlFrente, Statement.RETURN_GENERATED_KEYS)) {
+                for (int i = 0; i < frentesData.length; i++) {
+                    ps.setInt(1, uId);
+                    ps.setString(2, frentesData[i][0]);
+                    ps.setString(3, frentesData[i][1]);
+                    ps.executeUpdate();
+
+                    try (ResultSet keys = ps.getGeneratedKeys()) {
+                        if (keys.next()) {
+                            frenteIds.put(i, keys.getInt(1));
+                        } else {
+                            throw new SQLException("No se generó ID para el frente: " + frentesData[i][0]);
+                        }
+                    }
+                }
+            }
+            System.out.println(">>> FRENTES PREPARADOS (IDs reales): " + frenteIds);
+
+            // 4️⃣ Insertar EQUIPOS usando los IDs REALES (no asumidos)
+            // Formato: {serie, marca, modelo, tipo, indiceDelFrente, fechaCalibracion}
+            Object[][] equiposData = {
+                {"TG-98214", "Topcon",    "GTS-235W", "ESTACION_TOTAL",  0, "2026-12-15"},
+                {"RD-4401",  "Ruide",     "RL-C32",   "NIVEL_OPTICO",    1, "2026-11-20"},
+                {"RD-4402",  "Ruide",     "RL-C32",   "NIVEL_OPTICO",    0, "2026-11-20"},
+                {"RD-4403",  "Ruide",     "RL-C32",   "NIVEL_OPTICO",    2, "2026-11-20"},
+                {"RD-4404",  "Ruide",     "RL-C32",   "NIVEL_OPTICO",    3, "2026-10-30"},
+                {"RD-4405",  "Ruide",     "RL-C32",   "NIVEL_OPTICO",    4, "2026-10-30"},
+                {"RD-5510",  "Ruide",     "RL-C33",   "NIVEL_OPTICO",    1, "2026-12-01"},
+                {"HT-8820",  "Hi-Target", "B60",      "GPS_DIFERENCIAL", 2, "2027-01-15"},
+                {"HT-9930",  "Hi-Target", "B300",     "GPS_DIFERENCIAL", 0, "2027-02-10"}
+            };
+
+            String sqlEquipo = "INSERT INTO equipos " +
+                    "(usuario_id, serie, marca, modelo, tipo, estado, frente_id, fecha_vencimiento_calibracion) " +
+                    "VALUES (?, ?, ?, ?, ?, 'DISPONIBLE', ?, ?)";
+
+            try (PreparedStatement ps = conn.prepareStatement(sqlEquipo)) {
+                for (Object[] eq : equiposData) {
+                    int indiceFrente = (int) eq[4];
+                    Integer frenteIdReal = frenteIds.get(indiceFrente);
+
+                    ps.setInt(1, uId);
+                    ps.setString(2, (String) eq[0]);
+                    ps.setString(3, (String) eq[1]);
+                    ps.setString(4, (String) eq[2]);
+                    ps.setString(5, (String) eq[3]);
+                    if (frenteIdReal != null) {
+                        ps.setInt(6, frenteIdReal);
+                    } else {
+                        ps.setNull(6, Types.INTEGER);
+                    }
+                    ps.setString(7, (String) eq[5]);
+                    ps.addBatch();
+                }
+                int[] resultados = ps.executeBatch();
+                System.out.println(">>> EQUIPOS INSERTADOS: " + resultados.length);
+            }
+
+            // 5️⃣ Si TODO salió bien, confirmamos la transacción
+            conn.commit();
+            System.out.println(">>> ✅ PRECARGA COMPLETADA EXITOSAMENTE PARA 'sebastian'");
+
+        } catch (Exception e) {
+            System.err.println(">>> ❌ ERROR EN PRECARGA - SE HIZO ROLLBACK:");
+            e.printStackTrace(); // 🔑 Esto SÍ aparecerá completo en los logs de Render
+            if (conn != null) {
+                try {
+                    conn.rollback(); // 🔒 Revertimos TODO: ni frentes ni equipos quedan a medias
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                }
+            }
         }
     }
 
-    private void precargarDatosIniciales(Connection conn) {
-        try (Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM equipos")) {
-            if (rs.next() && rs.getInt(1) == 0) {
-                // Obtener ID del usuario sebastian
-                int uId = 1;
-                try (ResultSet rsU = stmt.executeQuery("SELECT id FROM usuarios WHERE username = 'sebastian'")) {
-                    if (rsU.next()) uId = rsU.getInt("id");
-                }
-
-                // 1. Frentes Iniciales
-                stmt.execute("INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES " +
-                        "(" + uId + ", 'Tramo Central Km 12', 'Sector Norte')," +
-                        "(" + uId + ", 'Puente Río Claro', 'Sector Sur')," +
-                        "(" + uId + ", 'Túnel La Línea Acceso', 'Sector Cordillera')," +
-                        "(" + uId + ", 'Plataforma Parque Logístico', 'Zona Industrial')," +
-                        "(" + uId + ", 'Campamento Base', 'Almacén Central');");
-
-                // 2. Equipos Reales Topográficos
-                stmt.execute("INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, frente_id, fecha_vencimiento_calibracion) VALUES " +
-                        "(" + uId + ", 'TG-98214', 'Topcon', 'GTS-235W', 'ESTACION_TOTAL', 'DISPONIBLE', 1, '2026-12-15')," +
-                        "(" + uId + ", 'RD-4401', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 2, '2026-11-20')," +
-                        "(" + uId + ", 'RD-4402', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 1, '2026-11-20')," +
-                        "(" + uId + ", 'RD-4403', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 3, '2026-11-20')," +
-                        "(" + uId + ", 'RD-4404', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 4, '2026-10-30')," +
-                        "(" + uId + ", 'RD-4405', 'Ruide', 'RL-C32', 'NIVEL_OPTICO', 'DISPONIBLE', 5, '2026-10-30')," +
-                        "(" + uId + ", 'RD-5510', 'Ruide', 'RL-C33', 'NIVEL_OPTICO', 'DISPONIBLE', 2, '2026-12-01')," +
-                        "(" + uId + ", 'HT-8820', 'Hi-Target', 'B60', 'GPS_DIFERENCIAL', 'DISPONIBLE', 3, '2027-01-15')," +
-                        "(" + uId + ", 'HT-9930', 'Hi-Target', 'B300', 'GPS_DIFERENCIAL', 'DISPONIBLE', 1, '2027-02-10');");
-
-                System.out.println(">>> DATOS REALES CARGADOS EXITOSAMENTE");
-            }
-        } catch (Exception e) {
-            System.err.println(">>> AVISO PRECARGA: " + e.getMessage());
+    // 🔧 Método auxiliar: cuenta filas de cualquier tabla de forma segura
+    private int contarFilas(Connection conn, String tabla) throws SQLException {
+        try (Statement st = conn.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM " + tabla)) {
+            if (rs.next()) return rs.getInt(1);
         }
+        return 0;
+    }
+
+    // 🔧 Método auxiliar: obtiene el ID real de un usuario por username
+    private int obtenerIdUsuario(Connection conn, String username) throws SQLException {
+        String sql = "SELECT id FROM usuarios WHERE username = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) return rs.getInt("id");
+            }
+        }
+        return -1;
     }
 
     public Map<String, Object> autenticar(String username, String password) {
@@ -150,14 +262,15 @@ public class EquipoDAO {
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, username);
             ps.setString(2, password);
-            ResultSet rs = ps.executeQuery();
-            if (rs.next()) {
-                Map<String, Object> u = new HashMap<>();
-                u.put("id", rs.getInt("id"));
-                u.put("username", rs.getString("username"));
-                u.put("nombre_completo", rs.getString("nombre_completo"));
-                u.put("empresa", rs.getString("empresa"));
-                return u;
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Map<String, Object> u = new HashMap<>();
+                    u.put("id", rs.getInt("id"));
+                    u.put("username", rs.getString("username"));
+                    u.put("nombre_completo", rs.getString("nombre_completo"));
+                    u.put("empresa", rs.getString("empresa"));
+                    return u;
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -174,9 +287,8 @@ public class EquipoDAO {
             ps.setString(3, nombreCompleto);
             ps.setString(4, empresa);
             ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) {
-                return rs.getInt(1);
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) return rs.getInt(1);
             }
         } catch (Exception e) {
             System.err.println(">>> ERROR AL REGISTRAR USUARIO: " + e.getMessage());
@@ -221,18 +333,19 @@ public class EquipoDAO {
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, usuarioId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("id", rs.getInt("id"));
-                row.put("serie", rs.getString("serie"));
-                row.put("marca", rs.getString("marca"));
-                row.put("modelo", rs.getString("modelo"));
-                row.put("tipo", rs.getString("tipo"));
-                row.put("estado", rs.getString("estado"));
-                row.put("frente_nombre", rs.getString("frente_nombre"));
-                row.put("fecha_vencimiento_calibracion", rs.getString("fecha_vencimiento_calibracion"));
-                list.add(row);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("id", rs.getInt("id"));
+                    row.put("serie", rs.getString("serie"));
+                    row.put("marca", rs.getString("marca"));
+                    row.put("modelo", rs.getString("modelo"));
+                    row.put("tipo", rs.getString("tipo"));
+                    row.put("estado", rs.getString("estado"));
+                    row.put("frente_nombre", rs.getString("frente_nombre"));
+                    row.put("fecha_vencimiento_calibracion", rs.getString("fecha_vencimiento_calibracion"));
+                    list.add(row);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -252,8 +365,9 @@ public class EquipoDAO {
             ps.setString(6, estado);
             ps.setString(7, calib);
             ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) return rs.getInt(1);
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) return rs.getInt(1);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -266,13 +380,14 @@ public class EquipoDAO {
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, usuarioId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("id", rs.getInt("id"));
-                row.put("nombre", rs.getString("nombre"));
-                row.put("ubicacion", rs.getString("ubicacion"));
-                list.add(row);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("id", rs.getInt("id"));
+                    row.put("nombre", rs.getString("nombre"));
+                    row.put("ubicacion", rs.getString("ubicacion"));
+                    list.add(row);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -288,8 +403,9 @@ public class EquipoDAO {
             ps.setString(2, nombre);
             ps.setString(3, ubicacion);
             ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) return rs.getInt(1);
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) return rs.getInt(1);
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -305,8 +421,9 @@ public class EquipoDAO {
             try (PreparedStatement ps = conn.prepareStatement(sqlOrigen)) {
                 ps.setInt(1, equipoId);
                 ps.setInt(2, usuarioId);
-                ResultSet rs = ps.executeQuery();
-                if (rs.next()) frenteOrigen = (Integer) rs.getObject("frente_id");
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) frenteOrigen = (Integer) rs.getObject("frente_id");
+                }
             }
             try (PreparedStatement ps = conn.prepareStatement(sqlUpdate)) {
                 ps.setInt(1, frenteDestinoId);
@@ -341,17 +458,18 @@ public class EquipoDAO {
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, usuarioId);
-            ResultSet rs = ps.executeQuery();
-            while (rs.next()) {
-                Map<String, Object> row = new HashMap<>();
-                row.put("fecha_traslado", rs.getString("fecha_traslado"));
-                row.put("motivo", rs.getString("motivo"));
-                row.put("marca", rs.getString("marca"));
-                row.put("modelo", rs.getString("modelo"));
-                row.put("serie", rs.getString("serie"));
-                row.put("frente_origen", rs.getString("frente_origen"));
-                row.put("frente_destino", rs.getString("frente_destino"));
-                list.add(row);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    Map<String, Object> row = new HashMap<>();
+                    row.put("fecha_traslado", rs.getString("fecha_traslado"));
+                    row.put("motivo", rs.getString("motivo"));
+                    row.put("marca", rs.getString("marca"));
+                    row.put("modelo", rs.getString("modelo"));
+                    row.put("serie", rs.getString("serie"));
+                    row.put("frente_origen", rs.getString("frente_origen"));
+                    row.put("frente_destino", rs.getString("frente_destino"));
+                    list.add(row);
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
