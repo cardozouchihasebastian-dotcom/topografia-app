@@ -35,20 +35,20 @@ public class TopografiaNetbeans {
                     "  \"name\": \"TopoTracker PRO\",\n" +
                     "  \"short_name\": \"TopoTracker\",\n" +
                     "  \"start_url\": \"/\",\n" +
-                    "  \"id\": \"/\",\n" +
+                    "  \"scope\": \"/\",\n" +
                     "  \"display\": \"standalone\",\n" +
                     "  \"background_color\": \"#0d1b2a\",\n" +
                     "  \"theme_color\": \"#f59e0b\",\n" +
                     "  \"orientation\": \"portrait\",\n" +
                     "  \"icons\": [\n" +
                     "    {\n" +
-                    "      \"src\": \"https://cdn-icons-png.flaticon.com/192/3254/3254641.png\",\n" +
+                    "      \"src\": \"/img/icon-192.png\",\n" +
                     "      \"sizes\": \"192x192\",\n" +
                     "      \"type\": \"image/png\",\n" +
                     "      \"purpose\": \"any maskable\"\n" +
                     "    },\n" +
                     "    {\n" +
-                    "      \"src\": \"https://cdn-icons-png.flaticon.com/512/3254/3254641.png\",\n" +
+                    "      \"src\": \"/img/icon-512.png\",\n" +
                     "      \"sizes\": \"512x512\",\n" +
                     "      \"type\": \"image/png\",\n" +
                     "      \"purpose\": \"any maskable\"\n" +
@@ -63,6 +63,14 @@ public class TopografiaNetbeans {
                 ctx.result("self.addEventListener('install', e => self.skipWaiting());\n" +
                            "self.addEventListener('activate', e => self.clients.claim());\n" +
                            "self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => new Response('Offline'))));");
+            });
+
+            // ================= ICONOS PWA =================
+            app.get("/img/icon-192.png", ctx -> {
+                ctx.redirect("https://raw.githubusercontent.com/cardozouchihasebastian-dotcom/topografia-app/main/src/main/resources/img/login-bg.png");
+            });
+            app.get("/img/icon-512.png", ctx -> {
+                ctx.redirect("https://raw.githubusercontent.com/cardozouchihasebastian-dotcom/topografia-app/main/src/main/resources/img/login-bg.png");
             });
 
             // ================= IMÁGENES =================
@@ -117,7 +125,16 @@ public class TopografiaNetbeans {
                     String username = extractJsonVal(body, "username");
                     String password = extractJsonVal(body, "password");
 
+                    username = normalizarTexto(username);
+
                     Map<String, Object> usuario = dao.autenticar(username, password);
+
+                    // Autocuración: si es sebastian / 1234 y no estaba en la base de datos, lo creamos
+                    if (usuario == null && username.equals("sebastian") && password.equals("1234")) {
+                        dao.registrarUsuario("sebastian", "1234", "Sebastian C.", "Topografia General");
+                        usuario = dao.autenticar("sebastian", "1234");
+                    }
+
                     if (usuario != null) {
                         ctx.contentType("application/json; charset=UTF-8");
                         ctx.result("{\"success\":true,\"usuario\":" + mapToJson(usuario) + "}");
@@ -133,7 +150,7 @@ public class TopografiaNetbeans {
             app.post("/api/auth/register", ctx -> {
                 try {
                     String body = ctx.body();
-                    String username = extractJsonVal(body, "username");
+                    String username = normalizarTexto(extractJsonVal(body, "username"));
                     String password = extractJsonVal(body, "password");
                     String nombre = extractJsonVal(body, "nombre_completo");
                     String empresa = extractJsonVal(body, "empresa");
@@ -233,6 +250,13 @@ public class TopografiaNetbeans {
         }
     }
 
+    private static String normalizarTexto(String s) {
+        if (s == null) return "";
+        return s.trim().toLowerCase()
+                .replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+                .replace("ñ", "n");
+    }
+
     private static String extractJsonVal(String json, String key) { return extractJsonVal(json, key, ""); }
     private static String extractJsonVal(String json, String key, String def) {
         if (json == null) return def;
@@ -308,10 +332,10 @@ public class TopografiaNetbeans {
             "  <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'>\n" +
             "  <title>" + title + "</title>\n" +
             "  <link rel='manifest' href='/manifest.json'>\n" +
-            "  <meta name='theme-color' content='#f59e0b'>\n" +
+            "  <meta name='theme-color' content='#0d1b2a'>\n" +
             "  <meta name='apple-mobile-web-app-capable' content='yes'>\n" +
             "  <meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'>\n" +
-            "  <link rel='apple-touch-icon' href='https://cdn-icons-png.flaticon.com/192/3254/3254641.png'>\n" +
+            "  <link rel='apple-touch-icon' href='https://raw.githubusercontent.com/cardozouchihasebastian-dotcom/topografia-app/main/src/main/resources/img/login-bg.png'>\n" +
             "  <script>\n" +
             "    if ('serviceWorker' in navigator) {\n" +
             "      window.addEventListener('load', () => {\n" +
@@ -341,28 +365,33 @@ public class TopografiaNetbeans {
             "  </script>\n" +
             "  <style>\n" +
             "    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }\n" +
-            "    body { color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; background-size: cover; background-position: center; background-attachment: fixed; }\n" +
-            "    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; background: rgba(13, 27, 42, 0.9); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.12); flex-wrap: wrap; gap: 10px; }\n" +
-            "    .logo { font-size: 1.25rem; font-weight: 800; color: #f59e0b; text-decoration: none; }\n" +
-            "    .nav-links { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }\n" +
-            "    .nav-link { color: #e2e8f0; text-decoration: none; font-weight: 600; padding: 6px 12px; border-radius: 6px; font-size: 0.9rem; }\n" +
+            "    html, body { min-height: 100vh; min-height: 100dvh; width: 100%; }\n" +
+            "    body { color: #f8fafc; display: flex; flex-direction: column; background-size: cover; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; }\n" +
+            "    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: rgba(13, 27, 42, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.12); flex-wrap: wrap; gap: 8px; }\n" +
+            "    .logo { font-size: 1.15rem; font-weight: 800; color: #f59e0b; text-decoration: none; }\n" +
+            "    .nav-links { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }\n" +
+            "    .nav-link { color: #e2e8f0; text-decoration: none; font-weight: 600; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; }\n" +
             "    .nav-link:hover, .nav-link.active { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }\n" +
-            "    .btn-action { background: #3b82f6; color: white; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }\n" +
+            "    .btn-action { background: #3b82f6; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }\n" +
             "    .btn-action:hover { background: #2563eb; }\n" +
-            "    .btn-instalar { background: #10b981; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: none; align-items: center; gap: 6px; box-shadow: 0 0 10px rgba(16,185,129,0.5); }\n" +
-            "    .btn-danger { background: #ef4444; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }\n" +
-            "    .content-container { flex: 1; padding: 24px; max-width: 1400px; margin: 0 auto; width: 100%; }\n" +
-            "    .card { background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 24px; }\n" +
+            "    .btn-instalar { background: #10b981; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: none; align-items: center; gap: 6px; }\n" +
+            "    .btn-danger { background: #ef4444; color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }\n" +
+            "    .content-container { flex: 1; padding: 16px; max-width: 1400px; margin: 0 auto; width: 100%; }\n" +
+            "    .card { background: rgba(15, 23, 42, 0.92); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 18px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 20px; width: 100%; }\n" +
             "    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.75); backdrop-filter: blur(5px); z-index: 1000; justify-content: center; align-items: center; padding: 15px; }\n" +
-            "    .modal-content { background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 24px; width: 100%; max-width: 500px; color: white; }\n" +
-            "    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 1.2rem; font-weight: 700; color: #f59e0b; }\n" +
+            "    .modal-content { background: #0f172a; border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 20px; width: 100%; max-width: 480px; color: white; }\n" +
+            "    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; font-size: 1.15rem; font-weight: 700; color: #f59e0b; }\n" +
             "    .modal-close { background: transparent; border: none; color: #94a3b8; font-size: 1.5rem; cursor: pointer; }\n" +
-            "    .form-group { margin-bottom: 14px; text-align: left; }\n" +
-            "    .form-group label { display: block; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 6px; font-weight: 600; }\n" +
+            "    .form-group { margin-bottom: 12px; text-align: left; }\n" +
+            "    .form-group label { display: block; font-size: 0.82rem; color: #cbd5e1; margin-bottom: 5px; font-weight: 600; }\n" +
             "    .form-control { width: 100%; padding: 10px 12px; border-radius: 6px; border: 1px solid #334155; background: #1e293b; color: white; font-size: 0.95rem; }\n" +
-            "    .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 18px; }\n" +
+            "    .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }\n" +
             "    .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }\n" +
             "    .badge-ok { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }\n" +
+            "    @media (max-width: 600px) {\n" +
+            "      body { background-position: 70% center !important; }\n" +
+            "      .login-box { width: 92% !important; max-width: 360px !important; margin: auto !important; padding: 16px !important; }\n" +
+            "    }\n" +
             "  </style>\n" +
             "</head>";
     }
@@ -370,15 +399,15 @@ public class TopografiaNetbeans {
     private static String renderLoginHtml(String localIp) {
         return "<!DOCTYPE html><html lang='es'>\n" +
             renderHead("TopoTracker PRO - Iniciar Sesión") +
-            "<body style='background-image: linear-gradient(rgba(10,25,47,0.8), rgba(10,25,47,0.88)), url(\"/img/login-bg.png\"); justify-content: center; align-items: center; padding: 15px;'>\n" +
-            "  <div class='card' style='width: 100%; max-width: 420px; text-align: center; border: 1px solid rgba(245,158,11,0.3);'>\n" +
-            "    <div style='font-size: 2.2rem; margin-bottom: 4px;'>🛰️</div>\n" +
-            "    <h1 style='color: #f59e0b; font-size: 1.6rem; font-weight: 800; margin-bottom: 4px;'>TopoTracker PRO</h1>\n" +
+            "<body style='background-image: linear-gradient(rgba(10,25,47,0.85), rgba(10,25,47,0.9)), url(\"/img/login-bg.png\"); justify-content: center; align-items: center; min-height: 100vh; padding: 16px;'>\n" +
+            "  <div class='card login-box' style='max-width: 380px; text-align: center; border: 1px solid rgba(245,158,11,0.3);'>\n" +
+            "    <div style='font-size: 2.5rem; margin-bottom: 6px;'>🛰️</div>\n" +
+            "    <h1 style='color: #f59e0b; font-size: 1.5rem; font-weight: 800; margin-bottom: 4px;'>TopoTracker PRO</h1>\n" +
             "    <p style='color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px;'>Control de Equipos y Topografía en Tiempo Real</p>\n" +
             "    <button id='btnInstalarPWA' class='btn-instalar' style='width:100%; justify-content:center; margin-bottom:16px;' onclick='instalarApp()'>📲 Instalar App en Celular</button>\n" +
             "    <form id='loginForm' onsubmit='handleLogin(event)'>\n" +
-            "      <div class='form-group'><label>Usuario</label><input type='text' id='logUser' class='form-control' required></div>\n" +
-            "      <div class='form-group'><label>Contraseña</label><input type='password' id='logPass' class='form-control' required></div>\n" +
+            "      <div class='form-group'><label>Usuario</label><input type='text' id='logUser' class='form-control' placeholder='sebastian' required autofocus></div>\n" +
+            "      <div class='form-group'><label>Contraseña</label><input type='password' id='logPass' class='form-control' placeholder='••••' required></div>\n" +
             "      <button type='submit' class='btn-action' style='width: 100%; padding: 12px; font-size: 1rem; background: #f59e0b; color: #000; font-weight: bold;'>Ingresar al Sistema</button>\n" +
             "    </form>\n" +
             "    <div style='margin-top: 18px; font-size: 0.88rem; color: #94a3b8;'>\n" +
@@ -440,7 +469,7 @@ public class TopografiaNetbeans {
             "  <div class='content-container'>\n" +
             "    <div class='card' style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;'>\n" +
             "      <div>\n" +
-            "        <h2 style='color:#f8fafc; font-size:1.4rem;'>Parque de Equipos Topográficos</h2>\n" +
+            "        <h2 style='color:#f8fafc; font-size:1.3rem;'>Parque de Equipos Topográficos</h2>\n" +
             "        <p style='color:#94a3b8; font-size:0.85rem;'>Control de Calibraciones y Asignaciones</p>\n" +
             "      </div>\n" +
             "      <div style='display:flex; gap:16px; font-size:0.9rem;'>\n" +
