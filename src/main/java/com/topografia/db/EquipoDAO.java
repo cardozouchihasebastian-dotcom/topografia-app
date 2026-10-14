@@ -57,9 +57,13 @@ public class EquipoDAO {
                         "fecha_traslado TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                         "motivo TEXT);");
 
-                stmt.execute("INSERT INTO usuarios (id, username, password, nombre_completo, empresa) " +
-                        "VALUES (1, 'sebastian', '1234', 'Sebastian C.', 'Topografia General') " +
-                        "ON CONFLICT (id) DO NOTHING;");
+                // Crear usuario inicial sebastian si no existe
+                stmt.execute("INSERT INTO usuarios (username, password, nombre_completo, empresa) " +
+                        "VALUES ('sebastian', '1234', 'Sebastian C.', 'Topografia General') " +
+                        "ON CONFLICT (username) DO NOTHING;");
+
+                // Sincronizar el contador para que los nuevos usuarios se registren sin chocar
+                stmt.execute("SELECT setval(pg_get_serial_sequence('usuarios', 'id'), COALESCE(MAX(id), 1)) FROM usuarios;");
 
             } else {
                 stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (" +
@@ -95,8 +99,8 @@ public class EquipoDAO {
                         "fecha_traslado DATETIME DEFAULT CURRENT_TIMESTAMP, " +
                         "motivo TEXT);");
 
-                stmt.execute("INSERT OR IGNORE INTO usuarios (id, username, password, nombre_completo, empresa) " +
-                        "VALUES (1, 'sebastian', '1234', 'Sebastian C.', 'Topografia General');");
+                stmt.execute("INSERT OR IGNORE INTO usuarios (username, password, nombre_completo, empresa) " +
+                        "VALUES ('sebastian', '1234', 'Sebastian C.', 'Topografia General');");
             }
 
         } catch (Exception e) {
@@ -111,86 +115,87 @@ public class EquipoDAO {
             try (Statement check = conn.createStatement();
                  ResultSet rs = check.executeQuery("SELECT COUNT(*) FROM equipos")) {
                 if (rs.next() && rs.getInt(1) > 0) {
-                    System.out.println("ℹ️ Ya existen equipos. No se precarga nada.");
                     return;
                 }
             }
-
-            System.out.println("🚀 Base vacía detectada. Precargando datos iniciales...");
 
             conn.setAutoCommit(false);
             boolean pg = esPostgres(conn);
 
             try {
-                // 1. Frentes reales
-                int f1 = insertarFrente(conn, pg, "Tramo Central Km 12", "Sector Norte");
-                int f2 = insertarFrente(conn, pg, "Puente Río Claro", "Sector Sur");
-                int f3 = insertarFrente(conn, pg, "Túnel La Línea Acceso", "Sector Cordillera");
-                int f4 = insertarFrente(conn, pg, "Plataforma Parque Logístico", "Zona Industrial");
-                int f5 = insertarFrente(conn, pg, "Campamento Base", "Almacén Central");
+                // Obtener ID del usuario sebastian
+                int uId = 1;
+                try (Statement st = conn.createStatement();
+                     ResultSet rs = st.executeQuery("SELECT id FROM usuarios WHERE username = 'sebastian'")) {
+                    if (rs.next()) uId = rs.getInt(1);
+                }
 
-                // 2. Equipos reales
-                insertarEquipo(conn, pg, "TG-98214", "Topcon", "GTS-235W", "ESTACION_TOTAL", "DISPONIBLE", f1, "2026-12-15");
-                insertarEquipo(conn, pg, "RD-4401", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-11-20");
-                insertarEquipo(conn, pg, "RD-4402", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f1, "2026-11-20");
-                insertarEquipo(conn, pg, "RD-4403", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f3, "2026-11-20");
-                insertarEquipo(conn, pg, "RD-4404", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f4, "2026-10-30");
-                insertarEquipo(conn, pg, "RD-4405", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f5, "2026-10-30");
-                insertarEquipo(conn, pg, "RD-5510", "Ruide", "RL-C33", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-12-01");
-                insertarEquipo(conn, pg, "HT-8820", "Hi-Target", "B60", "GPS_DIFERENCIAL", "DISPONIBLE", f3, "2027-01-15");
-                insertarEquipo(conn, pg, "HT-9930", "Hi-Target", "B300", "GPS_DIFERENCIAL", "DISPONIBLE", f1, "2027-02-10");
+                int f1 = insertarFrente(conn, pg, uId, "Tramo Central Km 12", "Sector Norte");
+                int f2 = insertarFrente(conn, pg, uId, "Puente Río Claro", "Sector Sur");
+                int f3 = insertarFrente(conn, pg, uId, "Túnel La Línea Acceso", "Sector Cordillera");
+                int f4 = insertarFrente(conn, pg, uId, "Plataforma Parque Logístico", "Zona Industrial");
+                int f5 = insertarFrente(conn, pg, uId, "Campamento Base", "Almacén Central");
+
+                insertarEquipo(conn, pg, uId, "TG-98214", "Topcon", "GTS-235W", "ESTACION_TOTAL", "DISPONIBLE", f1, "2026-12-15");
+                insertarEquipo(conn, pg, uId, "RD-4401", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-11-20");
+                insertarEquipo(conn, pg, uId, "RD-4402", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f1, "2026-11-20");
+                insertarEquipo(conn, pg, uId, "RD-4403", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f3, "2026-11-20");
+                insertarEquipo(conn, pg, uId, "RD-4404", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f4, "2026-10-30");
+                insertarEquipo(conn, pg, uId, "RD-4405", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f5, "2026-10-30");
+                insertarEquipo(conn, pg, uId, "RD-5510", "Ruide", "RL-C33", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-12-01");
+                insertarEquipo(conn, pg, uId, "HT-8820", "Hi-Target", "B60", "GPS_DIFERENCIAL", "DISPONIBLE", f3, "2027-01-15");
+                insertarEquipo(conn, pg, uId, "HT-9930", "Hi-Target", "B300", "GPS_DIFERENCIAL", "DISPONIBLE", f1, "2027-02-10");
 
                 conn.commit();
-                System.out.println("✅ Precarga exitosa: 5 frentes y 9 equipos reales creados.");
-
             } catch (Exception ex) {
                 conn.rollback();
-                System.err.println("❌ ERROR en precarga, se hizo rollback: " + ex.getMessage());
                 ex.printStackTrace();
             } finally {
                 conn.setAutoCommit(true);
             }
 
         } catch (Exception e) {
-            System.err.println("❌ ERROR conectando para precarga: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    private int insertarFrente(Connection conn, boolean pg, String nombre, String ubicacion) throws SQLException {
+    private int insertarFrente(Connection conn, boolean pg, int usuarioId, String nombre, String ubicacion) throws SQLException {
         if (pg) {
-            String sql = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (1, ?, ?) RETURNING id";
+            String sql = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (?, ?, ?) RETURNING id";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, nombre);
-                ps.setString(2, ubicacion);
+                ps.setInt(1, usuarioId);
+                ps.setString(2, nombre);
+                ps.setString(3, ubicacion);
                 ResultSet rs = ps.executeQuery();
                 if (rs.next()) return rs.getInt(1);
             }
         } else {
-            String sql = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (1, ?, ?)";
+            String sql = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (?, ?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setString(1, nombre);
-                ps.setString(2, ubicacion);
+                ps.setInt(1, usuarioId);
+                ps.setString(2, nombre);
+                ps.setString(3, ubicacion);
                 ps.executeUpdate();
                 ResultSet rs = ps.getGeneratedKeys();
                 if (rs.next()) return rs.getInt(1);
             }
         }
-        throw new SQLException("No se pudo insertar el frente: " + nombre);
+        throw new SQLException("No se pudo insertar frente");
     }
 
-    private void insertarEquipo(Connection conn, boolean pg, String serie, String marca, String modelo,
+    private void insertarEquipo(Connection conn, boolean pg, int usuarioId, String serie, String marca, String modelo,
                                  String tipo, String estado, int frenteId, String calib) throws SQLException {
         String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, frente_id, fecha_vencimiento_calibracion) " +
-                     "VALUES (1, ?, ?, ?, ?, ?, ?, ?)";
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, serie);
-            ps.setString(2, marca);
-            ps.setString(3, modelo);
-            ps.setString(4, tipo);
-            ps.setString(5, estado);
-            ps.setInt(6, frenteId);
-            ps.setString(7, calib);
+            ps.setInt(1, usuarioId);
+            ps.setString(2, serie);
+            ps.setString(3, marca);
+            ps.setString(4, modelo);
+            ps.setString(5, tipo);
+            ps.setString(6, estado);
+            ps.setInt(7, frenteId);
+            ps.setString(8, calib);
             ps.executeUpdate();
         }
     }
@@ -217,19 +222,36 @@ public class EquipoDAO {
     }
 
     public int registrarUsuario(String username, String password, String nombreCompleto, String empresa) {
-        String sql = "INSERT INTO usuarios (username, password, nombre_completo, empresa) VALUES (?, ?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, username);
-            ps.setString(2, password);
-            ps.setString(3, nombreCompleto);
-            ps.setString(4, empresa);
-            ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) {
-                return rs.getInt(1);
+        try (Connection conn = DatabaseManager.getConnection()) {
+            boolean pg = esPostgres(conn);
+            if (pg) {
+                String sql = "INSERT INTO usuarios (username, password, nombre_completo, empresa) VALUES (?, ?, ?, ?) RETURNING id";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setString(1, username);
+                    ps.setString(2, password);
+                    ps.setString(3, nombreCompleto);
+                    ps.setString(4, empresa);
+                    ResultSet rs = ps.executeQuery();
+                    if (rs.next()) {
+                        return rs.getInt(1);
+                    }
+                }
+            } else {
+                String sql = "INSERT INTO usuarios (username, password, nombre_completo, empresa) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setString(1, username);
+                    ps.setString(2, password);
+                    ps.setString(3, nombreCompleto);
+                    ps.setString(4, empresa);
+                    ps.executeUpdate();
+                    ResultSet rs = ps.getGeneratedKeys();
+                    if (rs.next()) {
+                        return rs.getInt(1);
+                    }
+                }
             }
         } catch (Exception e) {
+            System.err.println("❌ ERROR al registrar usuario: " + e.getMessage());
             e.printStackTrace();
         }
         return -1;
@@ -293,19 +315,36 @@ public class EquipoDAO {
     }
 
     public int crearEquipo(int usuarioId, String serie, String marca, String modelo, String tipo, String estado, String calib) {
-        String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, fecha_vencimiento_calibracion) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, usuarioId);
-            ps.setString(2, serie);
-            ps.setString(3, marca);
-            ps.setString(4, modelo);
-            ps.setString(5, tipo);
-            ps.setString(6, estado);
-            ps.setString(7, calib);
-            ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) return rs.getInt(1);
+        try (Connection conn = DatabaseManager.getConnection()) {
+            boolean pg = esPostgres(conn);
+            if (pg) {
+                String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, fecha_vencimiento_calibracion) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setInt(1, usuarioId);
+                    ps.setString(2, serie);
+                    ps.setString(3, marca);
+                    ps.setString(4, modelo);
+                    ps.setString(5, tipo);
+                    ps.setString(6, estado);
+                    ps.setString(7, calib);
+                    ResultSet rs = ps.executeQuery();
+                    if (rs.next()) return rs.getInt(1);
+                }
+            } else {
+                String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, fecha_vencimiento_calibracion) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setInt(1, usuarioId);
+                    ps.setString(2, serie);
+                    ps.setString(3, marca);
+                    ps.setString(4, modelo);
+                    ps.setString(5, tipo);
+                    ps.setString(6, estado);
+                    ps.setString(7, calib);
+                    ps.executeUpdate();
+                    ResultSet rs = ps.getGeneratedKeys();
+                    if (rs.next()) return rs.getInt(1);
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -333,15 +372,28 @@ public class EquipoDAO {
     }
 
     public int crearFrente(int usuarioId, String nombre, String ubicacion) {
-        String sql = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setInt(1, usuarioId);
-            ps.setString(2, nombre);
-            ps.setString(3, ubicacion);
-            ps.executeUpdate();
-            ResultSet rs = ps.getGeneratedKeys();
-            if (rs.next()) return rs.getInt(1);
+        try (Connection conn = DatabaseManager.getConnection()) {
+            boolean pg = esPostgres(conn);
+            if (pg) {
+                String sql = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (?, ?, ?) RETURNING id";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setInt(1, usuarioId);
+                    ps.setString(2, nombre);
+                    ps.setString(3, ubicacion);
+                    ResultSet rs = ps.executeQuery();
+                    if (rs.next()) return rs.getInt(1);
+                }
+            } else {
+                String sql = "INSERT INTO frentes_obra (usuario_id, nombre, ubicacion) VALUES (?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setInt(1, usuarioId);
+                    ps.setString(2, nombre);
+                    ps.setString(3, ubicacion);
+                    ps.executeUpdate();
+                    ResultSet rs = ps.getGeneratedKeys();
+                    if (rs.next()) return rs.getInt(1);
+                }
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }
