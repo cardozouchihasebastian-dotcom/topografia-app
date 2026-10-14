@@ -3,6 +3,10 @@ package com.topografia;
 import com.topografia.db.EquipoDAO;
 import io.javalin.Javalin;
 
+import javax.imageio.ImageIO;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -16,7 +20,13 @@ public class TopografiaNetbeans {
     private static final int PORT = System.getenv("PORT") != null ? Integer.parseInt(System.getenv("PORT")) : 8086;
     private static EquipoDAO dao;
 
+    // Iconos PNG reales en memoria generados nativamente
+    private static byte[] icon192Bytes;
+    private static byte[] icon512Bytes;
+
     public static void main(String[] args) {
+        System.setProperty("java.awt.headless", "true");
+
         try {
             dao = new EquipoDAO();
         } catch (Throwable t) {
@@ -24,11 +34,15 @@ public class TopografiaNetbeans {
             return;
         }
 
+        // Generar los iconos PNG que exige Chrome para la instalación
+        icon192Bytes = generarIconoPng(192);
+        icon512Bytes = generarIconoPng(512);
+
         try {
             String localIp = getLocalIpAddress();
             Javalin app = Javalin.create().start(PORT);
 
-            // ================= PWA MANIFEST (CON NOMBRE CORTO Y LOGO PRO) =================
+            // ================= PWA MANIFEST =================
             app.get("/manifest.json", ctx -> {
                 ctx.contentType("application/manifest+json");
                 ctx.result("{\n" +
@@ -38,70 +52,34 @@ public class TopografiaNetbeans {
                     "  \"scope\": \"/\",\n" +
                     "  \"display\": \"standalone\",\n" +
                     "  \"background_color\": \"#0d1b2a\",\n" +
-                    "  \"theme_color\": \"#f59e0b\",\n" +
+                    "  \"theme_color\": \"#0d1b2a\",\n" +
                     "  \"orientation\": \"portrait\",\n" +
                     "  \"icons\": [\n" +
                     "    {\n" +
-                    "      \"src\": \"/img/app-icon.svg\",\n" +
-                    "      \"sizes\": \"192x192 512x512\",\n" +
-                    "      \"type\": \"image/svg+xml\",\n" +
+                    "      \"src\": \"/img/icon-192.png\",\n" +
+                    "      \"sizes\": \"192x192\",\n" +
+                    "      \"type\": \"image/png\",\n" +
+                    "      \"purpose\": \"any maskable\"\n" +
+                    "    },\n" +
+                    "    {\n" +
+                    "      \"src\": \"/img/icon-512.png\",\n" +
+                    "      \"sizes\": \"512x512\",\n" +
+                    "      \"type\": \"image/png\",\n" +
                     "      \"purpose\": \"any maskable\"\n" +
                     "    }\n" +
                     "  ]\n" +
                     "}");
             });
 
-            // ================= ICONO PROFESIONAL HD VECTORIAL =================
-            app.get("/img/app-icon.svg", ctx -> {
-                ctx.contentType("image/svg+xml");
-                ctx.result("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>\n" +
-                    "  <defs>\n" +
-                    "    <linearGradient id='bgGrad' x1='0%' y1='0%' x2='100%' y2='100%'>\n" +
-                    "      <stop offset='0%' stop-color='#0f172a'/>\n" +
-                    "      <stop offset='50%' stop-color='#1e293b'/>\n" +
-                    "      <stop offset='100%' stop-color='#0a0f1d'/>\n" +
-                    "    </linearGradient>\n" +
-                    "    <linearGradient id='goldGrad' x1='0%' y1='0%' x2='100%' y2='100%'>\n" +
-                    "      <stop offset='0%' stop-color='#fbbf24'/>\n" +
-                    "      <stop offset='100%' stop-color='#d97706'/>\n" +
-                    "    </linearGradient>\n" +
-                    "    <linearGradient id='cyanGrad' x1='0%' y1='0%' x2='100%' y2='100%'>\n" +
-                    "      <stop offset='0%' stop-color='#38bdf8'/>\n" +
-                    "      <stop offset='100%' stop-color='#0284c7'/>\n" +
-                    "    </linearGradient>\n" +
-                    "  </defs>\n" +
-                    "  <!-- Fondo App Squircle -->\n" +
-                    "  <rect width='512' height='512' rx='110' fill='url(#bgGrad)'/>\n" +
-                    "  <rect width='496' height='496' x='8' y='8' rx='102' fill='none' stroke='url(#goldGrad)' stroke-width='6' opacity='0.6'/>\n" +
-                    "  <!-- Ondas Radar / Satélite -->\n" +
-                    "  <circle cx='256' cy='220' r='140' fill='none' stroke='#38bdf8' stroke-width='4' opacity='0.15'/>\n" +
-                    "  <circle cx='256' cy='220' r='100' fill='none' stroke='#38bdf8' stroke-width='4' stroke-dasharray='12 8' opacity='0.3'/>\n" +
-                    "  <!-- Trípode Topografía -->\n" +
-                    "  <path d='M256 240 L160 410 M256 240 L352 410 M256 240 L256 420' stroke='url(#goldGrad)' stroke-width='14' stroke-linecap='round'/>\n" +
-                    "  <!-- Barra estabilizadora trípode -->\n" +
-                    "  <path d='M195 350 L317 350' stroke='url(#goldGrad)' stroke-width='8' stroke-linecap='round' opacity='0.8'/>\n" +
-                    "  <!-- Base de la Estación Total -->\n" +
-                    "  <rect x='216' y='220' width='80' height='24' rx='8' fill='#e2e8f0'/>\n" +
-                    "  <!-- Cuerpo Estación Total -->\n" +
-                    "  <path d='M226 140 L286 140 L296 220 L216 220 Z' fill='url(#goldGrad)'/>\n" +
-                    "  <!-- Lente Telescopio -->\n" +
-                    "  <circle cx='256' cy='180' r='26' fill='#0f172a' stroke='#e2e8f0' stroke-width='6'/>\n" +
-                    "  <circle cx='256' cy='180' r='14' fill='url(#cyanGrad)'/>\n" +
-                    "  <circle cx='251' cy='175' r='5' fill='#ffffff' opacity='0.8'/>\n" +
-                    "  <!-- Satélite GPS orbital superior -->\n" +
-                    "  <g transform='translate(360, 90) scale(0.7)'>\n" +
-                    "    <rect x='-25' y='-15' width='50' height='30' rx='6' fill='#e2e8f0'/>\n" +
-                    "    <rect x='-75' y='-8' width='40' height='16' rx='3' fill='url(#cyanGrad)'/>\n" +
-                    "    <rect x='35' y='-8' width='40' height='16' rx='3' fill='url(#cyanGrad)'/>\n" +
-                    "    <circle cx='0' cy='0' r='5' fill='#ef4444'/>\n" +
-                    "  </g>\n" +
-                    "  <!-- Rayos láser de medición -->\n" +
-                    "  <line x1='256' y1='180' x2='120' y2='90' stroke='#38bdf8' stroke-width='4' stroke-dasharray='8 6' opacity='0.7'/>\n" +
-                    "  <circle cx='120' cy='90' r='6' fill='#38bdf8'/>\n" +
-                    "  <!-- Texto Badge PRO -->\n" +
-                    "  <rect x='186' y='435' width='140' height='36' rx='10' fill='url(#goldGrad)'/>\n" +
-                    "  <text x='256' y='460' font-family='Arial, sans-serif' font-size='22' font-weight='900' fill='#0f172a' text-anchor='middle' letter-spacing='2'>TOPO PRO</text>\n" +
-                    "</svg>");
+            // ================= ICONOS PNG PARA CHROME =================
+            app.get("/img/icon-192.png", ctx -> {
+                ctx.contentType("image/png");
+                ctx.result(icon192Bytes);
+            });
+
+            app.get("/img/icon-512.png", ctx -> {
+                ctx.contentType("image/png");
+                ctx.result(icon512Bytes);
             });
 
             // ================= SERVICE WORKER =================
@@ -288,6 +266,51 @@ public class TopografiaNetbeans {
         }
     }
 
+    private static byte[] generarIconoPng(int size) {
+        try {
+            BufferedImage bi = new BufferedImage(size, size, BufferedImage.TYPE_INT_RGB);
+            Graphics2D g = bi.createGraphics();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Fondo azul noche
+            g.setColor(new Color(13, 27, 42));
+            g.fillRect(0, 0, size, size);
+
+            // Marco redondeado dorado
+            g.setColor(new Color(245, 158, 11));
+            g.setStroke(new BasicStroke(size * 0.04f));
+            g.drawRoundRect((int)(size * 0.06), (int)(size * 0.06), (int)(size * 0.88), (int)(size * 0.88), (int)(size * 0.28), (int)(size * 0.28));
+
+            // Círculo dial topográfico
+            g.setColor(new Color(245, 158, 11));
+            g.fillOval((int)(size * 0.22), (int)(size * 0.22), (int)(size * 0.56), (int)(size * 0.56));
+
+            // Interior visor oscuro
+            g.setColor(new Color(15, 23, 42));
+            g.fillOval((int)(size * 0.29), (int)(size * 0.29), (int)(size * 0.42), (int)(size * 0.42));
+
+            // Retícula / Cruz topográfica cian brillante
+            g.setColor(new Color(56, 189, 248));
+            g.setStroke(new BasicStroke(size * 0.025f));
+            g.drawLine((int)(size * 0.16), (int)(size * 0.5), (int)(size * 0.84), (int)(size * 0.5));
+            g.drawLine((int)(size * 0.5), (int)(size * 0.16), (int)(size * 0.5), (int)(size * 0.84));
+
+            // Círculo mira láser
+            g.drawOval((int)(size * 0.4), (int)(size * 0.4), (int)(size * 0.2), (int)(size * 0.2));
+
+            // Punto central láser rojo
+            g.setColor(new Color(239, 68, 68));
+            g.fillOval((int)(size * 0.46), (int)(size * 0.46), (int)(size * 0.08), (int)(size * 0.08));
+
+            g.dispose();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(bi, "png", baos);
+            return baos.toByteArray();
+        } catch (Exception e) {
+            return new byte[0];
+        }
+    }
+
     private static String normalizarTexto(String s) {
         if (s == null) return "";
         return s.trim().toLowerCase()
@@ -373,7 +396,7 @@ public class TopografiaNetbeans {
             "  <meta name='theme-color' content='#0d1b2a'>\n" +
             "  <meta name='apple-mobile-web-app-capable' content='yes'>\n" +
             "  <meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'>\n" +
-            "  <link rel='apple-touch-icon' href='/img/app-icon.svg'>\n" +
+            "  <link rel='apple-touch-icon' href='/img/icon-192.png'>\n" +
             "  <script>\n" +
             "    if ('serviceWorker' in navigator) {\n" +
             "      window.addEventListener('load', () => {\n" +
@@ -397,7 +420,7 @@ public class TopografiaNetbeans {
             "        }\n" +
             "        deferredPrompt = null;\n" +
             "      } else {\n" +
-            "        alert('Para instalar: Toca los 3 puntitos de tu navegador y selecciona \"Instalar aplicación\" o \"Agregar a la pantalla principal\".');\n" +
+            "        alert('Toca los 3 puntitos de tu navegador y selecciona \"Instalar aplicación\" o \"Agregar a la pantalla principal\".');\n" +
             "      }\n" +
             "    }\n" +
             "  </script>\n" +
@@ -405,9 +428,6 @@ public class TopografiaNetbeans {
             "    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }\n" +
             "    html, body { min-height: 100vh; min-height: 100dvh; width: 100%; }\n" +
             "    body { color: #f8fafc; display: flex; flex-direction: column; background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n" +
-            "    .login-body { background-position: center center; }\n" +
-            "    .dash-body { background-position: center center; }\n" +
-            "    .frentes-body { background-position: center center; }\n" +
             "    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: rgba(13, 27, 42, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.12); flex-wrap: wrap; gap: 8px; }\n" +
             "    .logo { font-size: 1.15rem; font-weight: 800; color: #f59e0b; text-decoration: none; }\n" +
             "    .nav-links { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }\n" +
