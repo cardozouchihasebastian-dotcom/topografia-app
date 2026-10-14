@@ -105,10 +105,6 @@ public class EquipoDAO {
         }
     }
 
-    /**
-     * Inserta equipos y frentes de ejemplo SOLO si la tabla equipos está vacía.
-     * Esto evita duplicados en cada login.
-     */
     private void precargarDatosIniciales() {
         try (Connection conn = DatabaseManager.getConnection()) {
 
@@ -126,15 +122,26 @@ public class EquipoDAO {
             boolean pg = esPostgres(conn);
 
             try {
-                int frente1Id = insertarFrente(conn, pg, "Frente Norte", "Av. Principal 123");
-                int frente2Id = insertarFrente(conn, pg, "Frente Sur", "Calle Secundaria 456");
+                // 1. Frentes reales
+                int f1 = insertarFrente(conn, pg, "Tramo Central Km 12", "Sector Norte");
+                int f2 = insertarFrente(conn, pg, "Puente Río Claro", "Sector Sur");
+                int f3 = insertarFrente(conn, pg, "Túnel La Línea Acceso", "Sector Cordillera");
+                int f4 = insertarFrente(conn, pg, "Plataforma Parque Logístico", "Zona Industrial");
+                int f5 = insertarFrente(conn, pg, "Campamento Base", "Almacén Central");
 
-                insertarEquipo(conn, pg, "EST-001", "Leica", "TS06", "Estación Total", "DISPONIBLE", frente1Id, "2025-12-31");
-                insertarEquipo(conn, pg, "GPS-001", "Trimble", "R10", "GPS", "DISPONIBLE", frente1Id, "2025-11-30");
-                insertarEquipo(conn, pg, "NIV-001", "Topcon", "AT-B4", "Nivel", "DISPONIBLE", frente2Id, "2025-10-15");
+                // 2. Equipos reales
+                insertarEquipo(conn, pg, "TG-98214", "Topcon", "GTS-235W", "ESTACION_TOTAL", "DISPONIBLE", f1, "2026-12-15");
+                insertarEquipo(conn, pg, "RD-4401", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-11-20");
+                insertarEquipo(conn, pg, "RD-4402", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f1, "2026-11-20");
+                insertarEquipo(conn, pg, "RD-4403", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f3, "2026-11-20");
+                insertarEquipo(conn, pg, "RD-4404", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f4, "2026-10-30");
+                insertarEquipo(conn, pg, "RD-4405", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f5, "2026-10-30");
+                insertarEquipo(conn, pg, "RD-5510", "Ruide", "RL-C33", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-12-01");
+                insertarEquipo(conn, pg, "HT-8820", "Hi-Target", "B60", "GPS_DIFERENCIAL", "DISPONIBLE", f3, "2027-01-15");
+                insertarEquipo(conn, pg, "HT-9930", "Hi-Target", "B300", "GPS_DIFERENCIAL", "DISPONIBLE", f1, "2027-02-10");
 
                 conn.commit();
-                System.out.println("✅ Precarga exitosa: 2 frentes y 3 equipos creados.");
+                System.out.println("✅ Precarga exitosa: 5 frentes y 9 equipos reales creados.");
 
             } catch (Exception ex) {
                 conn.rollback();
