@@ -28,12 +28,12 @@ public class TopografiaNetbeans {
             String localIp = getLocalIpAddress();
             Javalin app = Javalin.create().start(PORT);
 
-            // ================= PWA MANIFEST =================
+            // ================= PWA MANIFEST (CON NOMBRE CORTO Y LOGO PRO) =================
             app.get("/manifest.json", ctx -> {
                 ctx.contentType("application/manifest+json");
                 ctx.result("{\n" +
                     "  \"name\": \"TopoTracker PRO\",\n" +
-                    "  \"short_name\": \"TopoTracker\",\n" +
+                    "  \"short_name\": \"TopoPRO\",\n" +
                     "  \"start_url\": \"/\",\n" +
                     "  \"scope\": \"/\",\n" +
                     "  \"display\": \"standalone\",\n" +
@@ -42,19 +42,66 @@ public class TopografiaNetbeans {
                     "  \"orientation\": \"portrait\",\n" +
                     "  \"icons\": [\n" +
                     "    {\n" +
-                    "      \"src\": \"/img/icon-192.png\",\n" +
-                    "      \"sizes\": \"192x192\",\n" +
-                    "      \"type\": \"image/png\",\n" +
-                    "      \"purpose\": \"any maskable\"\n" +
-                    "    },\n" +
-                    "    {\n" +
-                    "      \"src\": \"/img/icon-512.png\",\n" +
-                    "      \"sizes\": \"512x512\",\n" +
-                    "      \"type\": \"image/png\",\n" +
+                    "      \"src\": \"/img/app-icon.svg\",\n" +
+                    "      \"sizes\": \"192x192 512x512\",\n" +
+                    "      \"type\": \"image/svg+xml\",\n" +
                     "      \"purpose\": \"any maskable\"\n" +
                     "    }\n" +
                     "  ]\n" +
                     "}");
+            });
+
+            // ================= ICONO PROFESIONAL HD VECTORIAL =================
+            app.get("/img/app-icon.svg", ctx -> {
+                ctx.contentType("image/svg+xml");
+                ctx.result("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'>\n" +
+                    "  <defs>\n" +
+                    "    <linearGradient id='bgGrad' x1='0%' y1='0%' x2='100%' y2='100%'>\n" +
+                    "      <stop offset='0%' stop-color='#0f172a'/>\n" +
+                    "      <stop offset='50%' stop-color='#1e293b'/>\n" +
+                    "      <stop offset='100%' stop-color='#0a0f1d'/>\n" +
+                    "    </linearGradient>\n" +
+                    "    <linearGradient id='goldGrad' x1='0%' y1='0%' x2='100%' y2='100%'>\n" +
+                    "      <stop offset='0%' stop-color='#fbbf24'/>\n" +
+                    "      <stop offset='100%' stop-color='#d97706'/>\n" +
+                    "    </linearGradient>\n" +
+                    "    <linearGradient id='cyanGrad' x1='0%' y1='0%' x2='100%' y2='100%'>\n" +
+                    "      <stop offset='0%' stop-color='#38bdf8'/>\n" +
+                    "      <stop offset='100%' stop-color='#0284c7'/>\n" +
+                    "    </linearGradient>\n" +
+                    "  </defs>\n" +
+                    "  <!-- Fondo App Squircle -->\n" +
+                    "  <rect width='512' height='512' rx='110' fill='url(#bgGrad)'/>\n" +
+                    "  <rect width='496' height='496' x='8' y='8' rx='102' fill='none' stroke='url(#goldGrad)' stroke-width='6' opacity='0.6'/>\n" +
+                    "  <!-- Ondas Radar / Satélite -->\n" +
+                    "  <circle cx='256' cy='220' r='140' fill='none' stroke='#38bdf8' stroke-width='4' opacity='0.15'/>\n" +
+                    "  <circle cx='256' cy='220' r='100' fill='none' stroke='#38bdf8' stroke-width='4' stroke-dasharray='12 8' opacity='0.3'/>\n" +
+                    "  <!-- Trípode Topografía -->\n" +
+                    "  <path d='M256 240 L160 410 M256 240 L352 410 M256 240 L256 420' stroke='url(#goldGrad)' stroke-width='14' stroke-linecap='round'/>\n" +
+                    "  <!-- Barra estabilizadora trípode -->\n" +
+                    "  <path d='M195 350 L317 350' stroke='url(#goldGrad)' stroke-width='8' stroke-linecap='round' opacity='0.8'/>\n" +
+                    "  <!-- Base de la Estación Total -->\n" +
+                    "  <rect x='216' y='220' width='80' height='24' rx='8' fill='#e2e8f0'/>\n" +
+                    "  <!-- Cuerpo Estación Total -->\n" +
+                    "  <path d='M226 140 L286 140 L296 220 L216 220 Z' fill='url(#goldGrad)'/>\n" +
+                    "  <!-- Lente Telescopio -->\n" +
+                    "  <circle cx='256' cy='180' r='26' fill='#0f172a' stroke='#e2e8f0' stroke-width='6'/>\n" +
+                    "  <circle cx='256' cy='180' r='14' fill='url(#cyanGrad)'/>\n" +
+                    "  <circle cx='251' cy='175' r='5' fill='#ffffff' opacity='0.8'/>\n" +
+                    "  <!-- Satélite GPS orbital superior -->\n" +
+                    "  <g transform='translate(360, 90) scale(0.7)'>\n" +
+                    "    <rect x='-25' y='-15' width='50' height='30' rx='6' fill='#e2e8f0'/>\n" +
+                    "    <rect x='-75' y='-8' width='40' height='16' rx='3' fill='url(#cyanGrad)'/>\n" +
+                    "    <rect x='35' y='-8' width='40' height='16' rx='3' fill='url(#cyanGrad)'/>\n" +
+                    "    <circle cx='0' cy='0' r='5' fill='#ef4444'/>\n" +
+                    "  </g>\n" +
+                    "  <!-- Rayos láser de medición -->\n" +
+                    "  <line x1='256' y1='180' x2='120' y2='90' stroke='#38bdf8' stroke-width='4' stroke-dasharray='8 6' opacity='0.7'/>\n" +
+                    "  <circle cx='120' cy='90' r='6' fill='#38bdf8'/>\n" +
+                    "  <!-- Texto Badge PRO -->\n" +
+                    "  <rect x='186' y='435' width='140' height='36' rx='10' fill='url(#goldGrad)'/>\n" +
+                    "  <text x='256' y='460' font-family='Arial, sans-serif' font-size='22' font-weight='900' fill='#0f172a' text-anchor='middle' letter-spacing='2'>TOPO PRO</text>\n" +
+                    "</svg>");
             });
 
             // ================= SERVICE WORKER =================
@@ -63,14 +110,6 @@ public class TopografiaNetbeans {
                 ctx.result("self.addEventListener('install', e => self.skipWaiting());\n" +
                            "self.addEventListener('activate', e => self.clients.claim());\n" +
                            "self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => new Response('Offline'))));");
-            });
-
-            // ================= ICONOS PWA =================
-            app.get("/img/icon-192.png", ctx -> {
-                ctx.redirect("https://raw.githubusercontent.com/cardozouchihasebastian-dotcom/topografia-app/main/src/main/resources/img/login-bg.png");
-            });
-            app.get("/img/icon-512.png", ctx -> {
-                ctx.redirect("https://raw.githubusercontent.com/cardozouchihasebastian-dotcom/topografia-app/main/src/main/resources/img/login-bg.png");
             });
 
             // ================= IMÁGENES =================
@@ -334,7 +373,7 @@ public class TopografiaNetbeans {
             "  <meta name='theme-color' content='#0d1b2a'>\n" +
             "  <meta name='apple-mobile-web-app-capable' content='yes'>\n" +
             "  <meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'>\n" +
-            "  <link rel='apple-touch-icon' href='https://raw.githubusercontent.com/cardozouchihasebastian-dotcom/topografia-app/main/src/main/resources/img/login-bg.png'>\n" +
+            "  <link rel='apple-touch-icon' href='/img/app-icon.svg'>\n" +
             "  <script>\n" +
             "    if ('serviceWorker' in navigator) {\n" +
             "      window.addEventListener('load', () => {\n" +
