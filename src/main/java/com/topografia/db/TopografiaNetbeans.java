@@ -129,7 +129,6 @@ public class TopografiaNetbeans {
 
                     Map<String, Object> usuario = dao.autenticar(username, password);
 
-                    // Autocuración: si es sebastian / 1234 y no estaba en la base de datos, lo creamos
                     if (usuario == null && username.equals("sebastian") && password.equals("1234")) {
                         dao.registrarUsuario("sebastian", "1234", "Sebastian C.", "Topografia General");
                         usuario = dao.autenticar("sebastian", "1234");
@@ -366,8 +365,11 @@ public class TopografiaNetbeans {
             "  <style>\n" +
             "    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }\n" +
             "    html, body { min-height: 100vh; min-height: 100dvh; width: 100%; }\n" +
-            "    body { color: #f8fafc; display: flex; flex-direction: column; background-size: cover; background-position: center center; background-repeat: no-repeat; background-attachment: fixed; }\n" +
-            "    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; background: rgba(13, 27, 42, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.12); flex-wrap: wrap; gap: 8px; }\n" +
+            "    body { color: #f8fafc; display: flex; flex-direction: column; background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n" +
+            "    .login-body { background-position: center center; }\n" +
+            "    .dash-body { background-position: center center; }\n" +
+            "    .frentes-body { background-position: center center; }\n" +
+            "    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: rgba(13, 27, 42, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.12); flex-wrap: wrap; gap: 8px; }\n" +
             "    .logo { font-size: 1.15rem; font-weight: 800; color: #f59e0b; text-decoration: none; }\n" +
             "    .nav-links { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }\n" +
             "    .nav-link { color: #e2e8f0; text-decoration: none; font-weight: 600; padding: 6px 10px; border-radius: 6px; font-size: 0.85rem; }\n" +
@@ -388,9 +390,14 @@ public class TopografiaNetbeans {
             "    .grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }\n" +
             "    .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700; }\n" +
             "    .badge-ok { background: rgba(34, 197, 94, 0.2); color: #4ade80; border: 1px solid #22c55e; }\n" +
-            "    @media (max-width: 600px) {\n" +
-            "      body { background-position: 70% center !important; }\n" +
-            "      .login-box { width: 92% !important; max-width: 360px !important; margin: auto !important; padding: 16px !important; }\n" +
+            "    @media (max-width: 768px) {\n" +
+            "      body { background-attachment: scroll !important; background-size: cover !important; }\n" +
+            "      .login-body { background-position: 8% center !important; }\n" +
+            "      .dash-body { background-position: center top !important; }\n" +
+            "      .frentes-body { background-position: center top !important; }\n" +
+            "      .login-box { width: 92% !important; max-width: 360px !important; margin: auto !important; padding: 18px !important; }\n" +
+            "      .navbar { padding: 10px 14px !important; }\n" +
+            "      .content-container { padding: 12px !important; }\n" +
             "    }\n" +
             "  </style>\n" +
             "</head>";
@@ -399,7 +406,7 @@ public class TopografiaNetbeans {
     private static String renderLoginHtml(String localIp) {
         return "<!DOCTYPE html><html lang='es'>\n" +
             renderHead("TopoTracker PRO - Iniciar Sesión") +
-            "<body style='background-image: linear-gradient(rgba(10,25,47,0.85), rgba(10,25,47,0.9)), url(\"/img/login-bg.png\"); justify-content: center; align-items: center; min-height: 100vh; padding: 16px;'>\n" +
+            "<body class='login-body' style='background-image: linear-gradient(rgba(10,25,47,0.85), rgba(10,25,47,0.9)), url(\"/img/login-bg.png\"); justify-content: center; align-items: center; min-height: 100vh; padding: 16px;'>\n" +
             "  <div class='card login-box' style='max-width: 380px; text-align: center; border: 1px solid rgba(245,158,11,0.3);'>\n" +
             "    <div style='font-size: 2.5rem; margin-bottom: 6px;'>🛰️</div>\n" +
             "    <h1 style='color: #f59e0b; font-size: 1.5rem; font-weight: 800; margin-bottom: 4px;'>TopoTracker PRO</h1>\n" +
@@ -453,7 +460,7 @@ public class TopografiaNetbeans {
     private static String renderDashboardHtml(String localIp) {
         return "<!DOCTYPE html><html lang='es'>\n" +
             renderHead("TopoTracker PRO - Equipos y RTK") +
-            "<body style='background-image: linear-gradient(rgba(15,23,42,0.88), rgba(15,23,42,0.92)), url(\"/img/equipos-bg.png\");'>\n" +
+            "<body class='dash-body' style='background-image: linear-gradient(rgba(15,23,42,0.88), rgba(15,23,42,0.92)), url(\"/img/equipos-bg.png\");'>\n" +
             "  <div class='navbar'>\n" +
             "    <a href='/dashboard' class='logo'>🛰️ TopoTracker PRO</a>\n" +
             "    <div class='nav-links'>\n" +
@@ -541,7 +548,7 @@ public class TopografiaNetbeans {
     private static String renderFrentesHtml(String localIp) {
         return "<!DOCTYPE html><html lang='es'>\n" +
             renderHead("TopoTracker PRO - Frentes & Bitácora") +
-            "<body style='background-image: linear-gradient(rgba(15,23,42,0.88), rgba(15,23,42,0.92)), url(\"/img/mapa-bg.png\");'>\n" +
+            "<body class='frentes-body' style='background-image: linear-gradient(rgba(15,23,42,0.88), rgba(15,23,42,0.92)), url(\"/img/mapa-bg.png\");'>\n" +
             "  <div class='navbar'>\n" +
             "    <a href='/dashboard' class='logo'>🛰️ TopoTracker PRO</a>\n" +
             "    <div class='nav-links'>\n" +
