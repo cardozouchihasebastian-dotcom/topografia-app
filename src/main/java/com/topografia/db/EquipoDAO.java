@@ -8,7 +8,10 @@ import java.util.Map;
 
 public class EquipoDAO {
 
+    private boolean esPostgres = false;
+
     public EquipoDAO() {
+        esPostgres = System.getenv("DATABASE_URL") != null;
         inicializarBaseDatos();
     }
 
@@ -16,44 +19,85 @@ public class EquipoDAO {
         try (Connection conn = DatabaseManager.getConnection();
              Statement stmt = conn.createStatement()) {
 
-            stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (" +
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    "username TEXT UNIQUE NOT NULL, " +
-                    "password TEXT NOT NULL, " +
-                    "nombre_completo TEXT, " +
-                    "empresa TEXT);");
+            if (esPostgres) {
+                stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (" +
+                        "id SERIAL PRIMARY KEY, " +
+                        "username TEXT UNIQUE NOT NULL, " +
+                        "password TEXT NOT NULL, " +
+                        "nombre_completo TEXT, " +
+                        "empresa TEXT);");
 
-            stmt.execute("CREATE TABLE IF NOT EXISTS frentes_obra (" +
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    "usuario_id INTEGER DEFAULT 1, " +
-                    "nombre TEXT NOT NULL, " +
-                    "ubicacion TEXT);");
+                stmt.execute("CREATE TABLE IF NOT EXISTS frentes_obra (" +
+                        "id SERIAL PRIMARY KEY, " +
+                        "usuario_id INTEGER DEFAULT 1, " +
+                        "nombre TEXT NOT NULL, " +
+                        "ubicacion TEXT);");
 
-            stmt.execute("CREATE TABLE IF NOT EXISTS equipos (" +
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    "usuario_id INTEGER DEFAULT 1, " +
-                    "serie TEXT NOT NULL, " +
-                    "marca TEXT NOT NULL, " +
-                    "modelo TEXT NOT NULL, " +
-                    "tipo TEXT NOT NULL, " +
-                    "estado TEXT DEFAULT 'DISPONIBLE', " +
-                    "frente_id INTEGER, " +
-                    "fecha_vencimiento_calibracion TEXT);");
+                stmt.execute("CREATE TABLE IF NOT EXISTS equipos (" +
+                        "id SERIAL PRIMARY KEY, " +
+                        "usuario_id INTEGER DEFAULT 1, " +
+                        "serie TEXT NOT NULL, " +
+                        "marca TEXT NOT NULL, " +
+                        "modelo TEXT NOT NULL, " +
+                        "tipo TEXT NOT NULL, " +
+                        "estado TEXT DEFAULT 'DISPONIBLE', " +
+                        "frente_id INTEGER, " +
+                        "fecha_vencimiento_calibracion TEXT);");
 
-            stmt.execute("CREATE TABLE IF NOT EXISTS historial_traslados (" +
-                    "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                    "usuario_id INTEGER DEFAULT 1, " +
-                    "equipo_id INTEGER, " +
-                    "frente_origen_id INTEGER, " +
-                    "frente_destino_id INTEGER, " +
-                    "fecha_traslado DATETIME DEFAULT CURRENT_TIMESTAMP, " +
-                    "motivo TEXT);");
+                stmt.execute("CREATE TABLE IF NOT EXISTS historial_traslados (" +
+                        "id SERIAL PRIMARY KEY, " +
+                        "usuario_id INTEGER DEFAULT 1, " +
+                        "equipo_id INTEGER, " +
+                        "frente_origen_id INTEGER, " +
+                        "frente_destino_id INTEGER, " +
+                        "fecha_traslado TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
+                        "motivo TEXT);");
 
-            // Crear usuario por defecto si no existe
-            stmt.execute("INSERT OR IGNORE INTO usuarios (id, username, password, nombre_completo, empresa) " +
-                    "VALUES (1, 'sebastian', '1234', 'Sebastian C.', 'Topografia General');");
+                stmt.execute("INSERT INTO usuarios (username, password, nombre_completo, empresa) " +
+                        "VALUES ('sebastian', '1234', 'Sebastian C.', 'Topografia General') " +
+                        "ON CONFLICT (username) DO NOTHING;");
+            } else {
+                stmt.execute("CREATE TABLE IF NOT EXISTS usuarios (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        "username TEXT UNIQUE NOT NULL, " +
+                        "password TEXT NOT NULL, " +
+                        "nombre_completo TEXT, " +
+                        "empresa TEXT);");
+
+                stmt.execute("CREATE TABLE IF NOT EXISTS frentes_obra (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        "usuario_id INTEGER DEFAULT 1, " +
+                        "nombre TEXT NOT NULL, " +
+                        "ubicacion TEXT);");
+
+                stmt.execute("CREATE TABLE IF NOT EXISTS equipos (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        "usuario_id INTEGER DEFAULT 1, " +
+                        "serie TEXT NOT NULL, " +
+                        "marca TEXT NOT NULL, " +
+                        "modelo TEXT NOT NULL, " +
+                        "tipo TEXT NOT NULL, " +
+                        "estado TEXT DEFAULT 'DISPONIBLE', " +
+                        "frente_id INTEGER, " +
+                        "fecha_vencimiento_calibracion TEXT);");
+
+                stmt.execute("CREATE TABLE IF NOT EXISTS historial_traslados (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                        "usuario_id INTEGER DEFAULT 1, " +
+                        "equipo_id INTEGER, " +
+                        "frente_origen_id INTEGER, " +
+                        "frente_destino_id INTEGER, " +
+                        "fecha_traslado DATETIME DEFAULT CURRENT_TIMESTAMP, " +
+                        "motivo TEXT);");
+
+                stmt.execute("INSERT OR IGNORE INTO usuarios (id, username, password, nombre_completo, empresa) " +
+                        "VALUES (1, 'sebastian', '1234', 'Sebastian C.', 'Topografia General');");
+            }
+
+            System.out.println(">>> TABLAS CREADAS CORRECTAMENTE" + (esPostgres ? " (PostgreSQL)" : " (SQLite)"));
 
         } catch (Exception e) {
+            System.err.println(">>> ERROR AL CREAR TABLAS:");
             e.printStackTrace();
         }
     }
@@ -93,6 +137,7 @@ public class EquipoDAO {
                 return rs.getInt(1);
             }
         } catch (Exception e) {
+            System.err.println(">>> ERROR AL REGISTRAR USUARIO: " + e.getMessage());
             e.printStackTrace();
         }
         return -1;
