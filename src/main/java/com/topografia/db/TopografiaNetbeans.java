@@ -28,18 +28,25 @@ public class TopografiaNetbeans {
             String localIp = getLocalIpAddress();
             Javalin app = Javalin.create().start(PORT);
 
-            // ================= PWA =================
+            // ================= PWA MANIFEST =================
             app.get("/manifest.json", ctx -> {
                 ctx.contentType("application/manifest+json");
                 ctx.result("{\n" +
                     "  \"name\": \"TopoTracker PRO\",\n" +
                     "  \"short_name\": \"TopoTracker\",\n" +
                     "  \"start_url\": \"/\",\n" +
+                    "  \"id\": \"/\",\n" +
                     "  \"display\": \"standalone\",\n" +
                     "  \"background_color\": \"#0d1b2a\",\n" +
                     "  \"theme_color\": \"#f59e0b\",\n" +
-                    "  \"orientation\": \"portrait-primary\",\n" +
+                    "  \"orientation\": \"portrait\",\n" +
                     "  \"icons\": [\n" +
+                    "    {\n" +
+                    "      \"src\": \"https://cdn-icons-png.flaticon.com/192/3254/3254641.png\",\n" +
+                    "      \"sizes\": \"192x192\",\n" +
+                    "      \"type\": \"image/png\",\n" +
+                    "      \"purpose\": \"any maskable\"\n" +
+                    "    },\n" +
                     "    {\n" +
                     "      \"src\": \"https://cdn-icons-png.flaticon.com/512/3254/3254641.png\",\n" +
                     "      \"sizes\": \"512x512\",\n" +
@@ -50,9 +57,12 @@ public class TopografiaNetbeans {
                     "}");
             });
 
+            // ================= SERVICE WORKER =================
             app.get("/sw.js", ctx -> {
                 ctx.contentType("application/javascript");
-                ctx.result("self.addEventListener('fetch', function(e) {});");
+                ctx.result("self.addEventListener('install', e => self.skipWaiting());\n" +
+                           "self.addEventListener('activate', e => self.clients.claim());\n" +
+                           "self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => new Response('Offline'))));");
             });
 
             // ================= IMÁGENES =================
@@ -295,11 +305,40 @@ public class TopografiaNetbeans {
     private static String renderHead(String title) {
         return "<head>\n" +
             "  <meta charset='UTF-8'>\n" +
-            "  <meta name='viewport' content='width=device-width, initial-scale=1.0'>\n" +
+            "  <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no'>\n" +
             "  <title>" + title + "</title>\n" +
             "  <link rel='manifest' href='/manifest.json'>\n" +
             "  <meta name='theme-color' content='#f59e0b'>\n" +
             "  <meta name='apple-mobile-web-app-capable' content='yes'>\n" +
+            "  <meta name='apple-mobile-web-app-status-bar-style' content='black-translucent'>\n" +
+            "  <link rel='apple-touch-icon' href='https://cdn-icons-png.flaticon.com/192/3254/3254641.png'>\n" +
+            "  <script>\n" +
+            "    if ('serviceWorker' in navigator) {\n" +
+            "      window.addEventListener('load', () => {\n" +
+            "        navigator.serviceWorker.register('/sw.js');\n" +
+            "      });\n" +
+            "    }\n" +
+            "    let deferredPrompt = null;\n" +
+            "    window.addEventListener('beforeinstallprompt', (e) => {\n" +
+            "      e.preventDefault();\n" +
+            "      deferredPrompt = e;\n" +
+            "      const btn = document.getElementById('btnInstalarPWA');\n" +
+            "      if (btn) btn.style.display = 'inline-flex';\n" +
+            "    });\n" +
+            "    async function instalarApp() {\n" +
+            "      if (deferredPrompt) {\n" +
+            "        deferredPrompt.prompt();\n" +
+            "        const { outcome } = await deferredPrompt.userChoice;\n" +
+            "        if (outcome === 'accepted') {\n" +
+            "          const btn = document.getElementById('btnInstalarPWA');\n" +
+            "          if (btn) btn.style.display = 'none';\n" +
+            "        }\n" +
+            "        deferredPrompt = null;\n" +
+            "      } else {\n" +
+            "        alert('Para instalar: Toca los 3 puntitos de tu navegador y selecciona \"Instalar aplicación\" o \"Agregar a la pantalla principal\".');\n" +
+            "      }\n" +
+            "    }\n" +
+            "  </script>\n" +
             "  <style>\n" +
             "    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }\n" +
             "    body { color: #f8fafc; min-height: 100vh; display: flex; flex-direction: column; background-size: cover; background-position: center; background-attachment: fixed; }\n" +
@@ -310,6 +349,7 @@ public class TopografiaNetbeans {
             "    .nav-link:hover, .nav-link.active { background: rgba(245, 158, 11, 0.2); color: #f59e0b; }\n" +
             "    .btn-action { background: #3b82f6; color: white; border: none; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }\n" +
             "    .btn-action:hover { background: #2563eb; }\n" +
+            "    .btn-instalar { background: #10b981; color: white; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 700; font-size: 0.85rem; display: none; align-items: center; gap: 6px; box-shadow: 0 0 10px rgba(16,185,129,0.5); }\n" +
             "    .btn-danger { background: #ef4444; color: white; border: none; padding: 7px 12px; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 0.85rem; }\n" +
             "    .content-container { flex: 1; padding: 24px; max-width: 1400px; margin: 0 auto; width: 100%; }\n" +
             "    .card { background: rgba(15, 23, 42, 0.88); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); margin-bottom: 24px; }\n" +
@@ -330,11 +370,12 @@ public class TopografiaNetbeans {
     private static String renderLoginHtml(String localIp) {
         return "<!DOCTYPE html><html lang='es'>\n" +
             renderHead("TopoTracker PRO - Iniciar Sesión") +
-            "<body style='background-image: linear-gradient(rgba(10,25,47,0.8), rgba(10,25,47,0.88)), url(\"/img/login-bg.png\"); justify-content: center; align-items: center;'>\n" +
+            "<body style='background-image: linear-gradient(rgba(10,25,47,0.8), rgba(10,25,47,0.88)), url(\"/img/login-bg.png\"); justify-content: center; align-items: center; padding: 15px;'>\n" +
             "  <div class='card' style='width: 100%; max-width: 420px; text-align: center; border: 1px solid rgba(245,158,11,0.3);'>\n" +
-            "    <div style='font-size: 2rem; margin-bottom: 4px;'>🛰️</div>\n" +
+            "    <div style='font-size: 2.2rem; margin-bottom: 4px;'>🛰️</div>\n" +
             "    <h1 style='color: #f59e0b; font-size: 1.6rem; font-weight: 800; margin-bottom: 4px;'>TopoTracker PRO</h1>\n" +
-            "    <p style='color: #94a3b8; font-size: 0.85rem; margin-bottom: 20px;'>Control de Equipos y Topografía en Tiempo Real</p>\n" +
+            "    <p style='color: #94a3b8; font-size: 0.85rem; margin-bottom: 16px;'>Control de Equipos y Topografía en Tiempo Real</p>\n" +
+            "    <button id='btnInstalarPWA' class='btn-instalar' style='width:100%; justify-content:center; margin-bottom:16px;' onclick='instalarApp()'>📲 Instalar App en Celular</button>\n" +
             "    <form id='loginForm' onsubmit='handleLogin(event)'>\n" +
             "      <div class='form-group'><label>Usuario</label><input type='text' id='logUser' class='form-control' required></div>\n" +
             "      <div class='form-group'><label>Contraseña</label><input type='password' id='logPass' class='form-control' required></div>\n" +
@@ -374,7 +415,7 @@ public class TopografiaNetbeans {
             "    e.preventDefault();\n" +
             "    const r = await fetch('/api/auth/register', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({nombre_completo:document.getElementById('regNombre').value, empresa:document.getElementById('regEmpresa').value, username:document.getElementById('regUsername').value, password:document.getElementById('regPassword').value}) });\n" +
             "    const d = await r.json();\n" +
-            "    if (d.success) { alert('✅ ¡Cuenta creada!'); cerrarModalRegistro(); }\n" +
+            "    if (d.success) { alert('✅ ¡Cuenta creada exitosamente!'); cerrarModalRegistro(); }\n" +
             "    else { alert('❌ ' + d.error); }\n" +
             "  }\n" +
             "</script></body></html>";
@@ -389,6 +430,7 @@ public class TopografiaNetbeans {
             "    <div class='nav-links'>\n" +
             "      <a href='/dashboard' class='nav-link active'>📦 Equipos</a>\n" +
             "      <a href='/frentes' class='nav-link'>📍 Frentes & Bitácora</a>\n" +
+            "      <button id='btnInstalarPWA' class='btn-instalar' onclick='instalarApp()'>📲 Instalar App</button>\n" +
             "      <button class='btn-action' style='background:#10b981;' onclick='abrirModalNuevoEquipo()'>+ Nuevo Equipo</button>\n" +
             "      <span style='font-size:0.85rem; color:#94a3b8; margin-left:8px;'>👤 <span id='userNombre' style='color:#f59e0b; font-weight:bold;'></span></span>\n" +
             "      <button class='btn-danger' onclick='eliminarMiCuenta()'>🗑️ Eliminar</button>\n" +
