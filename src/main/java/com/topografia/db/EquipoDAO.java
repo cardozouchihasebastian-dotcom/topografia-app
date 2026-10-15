@@ -10,7 +10,7 @@ public class EquipoDAO {
 
     public EquipoDAO() {
         inicializarBaseDatos();
-        precargarDatosIniciales();
+        precargarDatosOficiales();
     }
 
     private boolean esPostgres(Connection conn) throws SQLException {
@@ -46,7 +46,10 @@ public class EquipoDAO {
                         "tipo TEXT NOT NULL, " +
                         "estado TEXT DEFAULT 'DISPONIBLE', " +
                         "frente_id INTEGER, " +
+                        "operador TEXT DEFAULT 'Sin asignar', " +
                         "fecha_vencimiento_calibracion TEXT);");
+
+                stmt.execute("ALTER TABLE equipos ADD COLUMN IF NOT EXISTS operador TEXT DEFAULT 'Sin asignar';");
 
                 stmt.execute("CREATE TABLE IF NOT EXISTS historial_traslados (" +
                         "id SERIAL PRIMARY KEY, " +
@@ -57,12 +60,10 @@ public class EquipoDAO {
                         "fecha_traslado TIMESTAMP DEFAULT CURRENT_TIMESTAMP, " +
                         "motivo TEXT);");
 
-                // Crear usuario inicial sebastian si no existe
                 stmt.execute("INSERT INTO usuarios (username, password, nombre_completo, empresa) " +
                         "VALUES ('sebastian', '1234', 'Sebastian C.', 'Topografia General') " +
                         "ON CONFLICT (username) DO NOTHING;");
 
-                // Sincronizar el contador para que los nuevos usuarios se registren sin chocar
                 stmt.execute("SELECT setval(pg_get_serial_sequence('usuarios', 'id'), COALESCE(MAX(id), 1)) FROM usuarios;");
 
             } else {
@@ -88,7 +89,12 @@ public class EquipoDAO {
                         "tipo TEXT NOT NULL, " +
                         "estado TEXT DEFAULT 'DISPONIBLE', " +
                         "frente_id INTEGER, " +
+                        "operador TEXT DEFAULT 'Sin asignar', " +
                         "fecha_vencimiento_calibracion TEXT);");
+
+                try {
+                    stmt.execute("ALTER TABLE equipos ADD COLUMN operador TEXT DEFAULT 'Sin asignar';");
+                } catch (Exception ignored) {}
 
                 stmt.execute("CREATE TABLE IF NOT EXISTS historial_traslados (" +
                         "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
@@ -104,49 +110,71 @@ public class EquipoDAO {
             }
 
         } catch (Exception e) {
-            System.err.println("❌ ERROR creando tablas: " + e.getMessage());
             e.printStackTrace();
         }
     }
 
-    private void precargarDatosIniciales() {
+    public void precargarDatosOficiales() {
         try (Connection conn = DatabaseManager.getConnection()) {
+            boolean pg = esPostgres(conn);
 
+            int uId = 1;
+            try (Statement st = conn.createStatement();
+                 ResultSet rs = st.executeQuery("SELECT id FROM usuarios WHERE username = 'sebastian'")) {
+                if (rs.next()) uId = rs.getInt(1);
+            }
+
+            // Si ya hay equipos asignados de la tabla real, no duplicar
             try (Statement check = conn.createStatement();
-                 ResultSet rs = check.executeQuery("SELECT COUNT(*) FROM equipos")) {
-                if (rs.next() && rs.getInt(1) > 0) {
+                 ResultSet rs = check.executeQuery("SELECT COUNT(*) FROM equipos WHERE serie LIKE 'EQ-%'")) {
+                if (rs.next() && rs.getInt(1) >= 8) {
                     return;
                 }
             }
 
-            conn.setAutoCommit(false);
+            cargarTablaExcelObra(uId);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void cargarTablaExcelObra(int usuarioId) {
+        try (Connection conn = DatabaseManager.getConnection()) {
             boolean pg = esPostgres(conn);
+            conn.setAutoCommit(false);
 
             try {
-                // Obtener ID del usuario sebastian
-                int uId = 1;
-                try (Statement st = conn.createStatement();
-                     ResultSet rs = st.executeQuery("SELECT id FROM usuarios WHERE username = 'sebastian'")) {
-                    if (rs.next()) uId = rs.getInt(1);
+                // Borrar datos viejos de prueba para dejar la tabla limpia
+                try (PreparedStatement psDel = conn.prepareStatement("DELETE FROM equipos WHERE usuario_id = ?")) {
+                    psDel.setInt(1, usuarioId); psDel.executeUpdate();
+                }
+                try (PreparedStatement psDelF = conn.prepareStatement("DELETE FROM frentes_obra WHERE usuario_id = ?")) {
+                    psDelF.setInt(1, usuarioId); psDelF.executeUpdate();
                 }
 
-                int f1 = insertarFrente(conn, pg, uId, "Tramo Central Km 12", "Sector Norte");
-                int f2 = insertarFrente(conn, pg, uId, "Puente Río Claro", "Sector Sur");
-                int f3 = insertarFrente(conn, pg, uId, "Túnel La Línea Acceso", "Sector Cordillera");
-                int f4 = insertarFrente(conn, pg, uId, "Plataforma Parque Logístico", "Zona Industrial");
-                int f5 = insertarFrente(conn, pg, uId, "Campamento Base", "Almacén Central");
+                // 1. Frentes reales de tu Excel
+                int fCogua = insertarFrente(conn, pg, usuarioId, "Cogua", "Sector Obra Principal");
+                int fTanque = insertarFrente(conn, pg, usuarioId, "Tanque", "Zona Reservorio");
+                int fFuenteNoc = insertarFrente(conn, pg, usuarioId, "La Fuente - Nocturno", "Turno Noche");
+                int fFuenteDiu = insertarFrente(conn, pg, usuarioId, "La Fuente - Diurno", "Turno Día");
+                int fFuenteMix = insertarFrente(conn, pg, usuarioId, "La Fuente - Diurno/nocturno", "Turno Mixto");
+                int fSantander = insertarFrente(conn, pg, usuarioId, "Santander", "Sector Santander");
+                int fBodega = insertarFrente(conn, pg, usuarioId, "Bodega", "Almacén Central de Equipos");
 
-                insertarEquipo(conn, pg, uId, "TG-98214", "Topcon", "GTS-235W", "ESTACION_TOTAL", "DISPONIBLE", f1, "2026-12-15");
-                insertarEquipo(conn, pg, uId, "RD-4401", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-11-20");
-                insertarEquipo(conn, pg, uId, "RD-4402", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f1, "2026-11-20");
-                insertarEquipo(conn, pg, uId, "RD-4403", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f3, "2026-11-20");
-                insertarEquipo(conn, pg, uId, "RD-4404", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f4, "2026-10-30");
-                insertarEquipo(conn, pg, uId, "RD-4405", "Ruide", "RL-C32", "NIVEL_OPTICO", "DISPONIBLE", f5, "2026-10-30");
-                insertarEquipo(conn, pg, uId, "RD-5510", "Ruide", "RL-C33", "NIVEL_OPTICO", "DISPONIBLE", f2, "2026-12-01");
-                insertarEquipo(conn, pg, uId, "HT-8820", "Hi-Target", "B60", "GPS_DIFERENCIAL", "DISPONIBLE", f3, "2027-01-15");
-                insertarEquipo(conn, pg, uId, "HT-9930", "Hi-Target", "B300", "GPS_DIFERENCIAL", "DISPONIBLE", f1, "2027-02-10");
+                // 2. Equipos reales con Operadores según tu Excel
+                insertarEquipo(conn, pg, usuarioId, "EQ-EST-001", "Topcon", "GTS Series", "ESTACION_TOTAL", "ASIGNADO", fCogua, "Jaime Telles", "2026-12-15");
+                insertarEquipo(conn, pg, usuarioId, "EQ-NIV-001", "Ruide", "RL-C32", "NIVEL_OPTICO", "ASIGNADO", fCogua, "Jaime Telles", "2026-11-20");
+                insertarEquipo(conn, pg, usuarioId, "EQ-NIV-002", "Ruide", "RL-C32", "NIVEL_OPTICO", "ASIGNADO", fTanque, "Sebastian Cardozo", "2026-11-20");
+                insertarEquipo(conn, pg, usuarioId, "EQ-NIV-003", "Ruide", "RL-C32", "NIVEL_OPTICO", "ASIGNADO", fFuenteNoc, "Gabriel Castro", "2026-11-20");
+                insertarEquipo(conn, pg, usuarioId, "EQ-NIV-004", "Ruide", "RL-C32", "NIVEL_OPTICO", "ASIGNADO", fFuenteNoc, "Rene Telles", "2026-10-30");
+                insertarEquipo(conn, pg, usuarioId, "EQ-NIV-005", "Ruide", "RL-C32", "NIVEL_OPTICO", "ASIGNADO", fFuenteDiu, "Sebastian Cristancho", "2026-10-30");
+                insertarEquipo(conn, pg, usuarioId, "EQ-NIV-006", "Ruide", "RL-C33", "NIVEL_OPTICO", "ASIGNADO", fFuenteMix, "Steven Valero", "2026-12-01");
+                insertarEquipo(conn, pg, usuarioId, "EQ-RTK-003", "Hi-Target", "B60", "GPS_DIFERENCIAL", "ASIGNADO", fSantander, "William Duarte", "2027-01-15");
+                insertarEquipo(conn, pg, usuarioId, "EQ-RTK-001", "Hi-Target", "B300", "GPS_DIFERENCIAL", "DISPONIBLE", fBodega, "Sin asignar", "2027-02-10");
 
                 conn.commit();
+                System.out.println("✅ Tabla oficial de obra cargada exitosamente.");
             } catch (Exception ex) {
                 conn.rollback();
                 ex.printStackTrace();
@@ -180,13 +208,13 @@ public class EquipoDAO {
                 if (rs.next()) return rs.getInt(1);
             }
         }
-        throw new SQLException("No se pudo insertar frente");
+        throw new SQLException("Error al insertar frente");
     }
 
     private void insertarEquipo(Connection conn, boolean pg, int usuarioId, String serie, String marca, String modelo,
-                                 String tipo, String estado, int frenteId, String calib) throws SQLException {
-        String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, frente_id, fecha_vencimiento_calibracion) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                                 String tipo, String estado, int frenteId, String operador, String calib) throws SQLException {
+        String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, frente_id, operador, fecha_vencimiento_calibracion) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, usuarioId);
             ps.setString(2, serie);
@@ -195,7 +223,8 @@ public class EquipoDAO {
             ps.setString(5, tipo);
             ps.setString(6, estado);
             ps.setInt(7, frenteId);
-            ps.setString(8, calib);
+            ps.setString(8, operador != null ? operador : "Sin asignar");
+            ps.setString(9, calib);
             ps.executeUpdate();
         }
     }
@@ -232,9 +261,7 @@ public class EquipoDAO {
                     ps.setString(3, nombreCompleto);
                     ps.setString(4, empresa);
                     ResultSet rs = ps.executeQuery();
-                    if (rs.next()) {
-                        return rs.getInt(1);
-                    }
+                    if (rs.next()) return rs.getInt(1);
                 }
             } else {
                 String sql = "INSERT INTO usuarios (username, password, nombre_completo, empresa) VALUES (?, ?, ?, ?)";
@@ -245,13 +272,10 @@ public class EquipoDAO {
                     ps.setString(4, empresa);
                     ps.executeUpdate();
                     ResultSet rs = ps.getGeneratedKeys();
-                    if (rs.next()) {
-                        return rs.getInt(1);
-                    }
+                    if (rs.next()) return rs.getInt(1);
                 }
             }
         } catch (Exception e) {
-            System.err.println("❌ ERROR al registrar usuario: " + e.getMessage());
             e.printStackTrace();
         }
         return -1;
@@ -291,7 +315,7 @@ public class EquipoDAO {
         List<Map<String, Object>> list = new ArrayList<>();
         String sql = "SELECT e.*, f.nombre as frente_nombre FROM equipos e " +
                      "LEFT JOIN frentes_obra f ON e.frente_id = f.id " +
-                     "WHERE e.usuario_id = ? ORDER BY e.id DESC";
+                     "WHERE e.usuario_id = ? ORDER BY e.id ASC";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, usuarioId);
@@ -305,6 +329,7 @@ public class EquipoDAO {
                 row.put("tipo", rs.getString("tipo"));
                 row.put("estado", rs.getString("estado"));
                 row.put("frente_nombre", rs.getString("frente_nombre"));
+                row.put("operador", rs.getString("operador"));
                 row.put("fecha_vencimiento_calibracion", rs.getString("fecha_vencimiento_calibracion"));
                 list.add(row);
             }
@@ -314,11 +339,11 @@ public class EquipoDAO {
         return list;
     }
 
-    public int crearEquipo(int usuarioId, String serie, String marca, String modelo, String tipo, String estado, String calib) {
+    public int crearEquipo(int usuarioId, String serie, String marca, String modelo, String tipo, String estado, String operador, String calib) {
         try (Connection conn = DatabaseManager.getConnection()) {
             boolean pg = esPostgres(conn);
             if (pg) {
-                String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, fecha_vencimiento_calibracion) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id";
+                String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, operador, fecha_vencimiento_calibracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
                     ps.setInt(1, usuarioId);
                     ps.setString(2, serie);
@@ -326,12 +351,13 @@ public class EquipoDAO {
                     ps.setString(4, modelo);
                     ps.setString(5, tipo);
                     ps.setString(6, estado);
-                    ps.setString(7, calib);
+                    ps.setString(7, operador != null ? operador : "Sin asignar");
+                    ps.setString(8, calib);
                     ResultSet rs = ps.executeQuery();
                     if (rs.next()) return rs.getInt(1);
                 }
             } else {
-                String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, fecha_vencimiento_calibracion) VALUES (?, ?, ?, ?, ?, ?, ?)";
+                String sql = "INSERT INTO equipos (usuario_id, serie, marca, modelo, tipo, estado, operador, fecha_vencimiento_calibracion) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                     ps.setInt(1, usuarioId);
                     ps.setString(2, serie);
@@ -339,7 +365,8 @@ public class EquipoDAO {
                     ps.setString(4, modelo);
                     ps.setString(5, tipo);
                     ps.setString(6, estado);
-                    ps.setString(7, calib);
+                    ps.setString(7, operador != null ? operador : "Sin asignar");
+                    ps.setString(8, calib);
                     ps.executeUpdate();
                     ResultSet rs = ps.getGeneratedKeys();
                     if (rs.next()) return rs.getInt(1);
@@ -353,7 +380,7 @@ public class EquipoDAO {
 
     public List<Map<String, Object>> listarFrentesPorUsuario(int usuarioId) {
         List<Map<String, Object>> list = new ArrayList<>();
-        String sql = "SELECT * FROM frentes_obra WHERE usuario_id = ? ORDER BY id DESC";
+        String sql = "SELECT * FROM frentes_obra WHERE usuario_id = ? ORDER BY id ASC";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, usuarioId);
