@@ -20,7 +20,6 @@ public class TopografiaNetbeans {
     private static final int PORT = System.getenv("PORT") != null ? Integer.parseInt(System.getenv("PORT")) : 8086;
     private static EquipoDAO dao;
 
-    // Iconos PNG reales en memoria generados nativamente
     private static byte[] icon192Bytes;
     private static byte[] icon512Bytes;
 
@@ -34,7 +33,6 @@ public class TopografiaNetbeans {
             return;
         }
 
-        // Generar los iconos PNG que exige Chrome para la instalación
         icon192Bytes = generarIconoPng(192);
         icon512Bytes = generarIconoPng(512);
 
@@ -135,6 +133,13 @@ public class TopografiaNetbeans {
                 ctx.result(renderFrentesHtml(localIp));
             });
 
+            // ================= BOTÓN DE SINCRONIZAR TABLA OFICIAL =================
+            app.get("/api/admin/sincronizar-obra", ctx -> {
+                int usuarioId = ctx.queryParamAsClass("usuario_id", Integer.class).getOrDefault(1);
+                dao.cargarTablaExcelObra(usuarioId);
+                ctx.result("{\"success\":true}");
+            });
+
             // ================= APIS =================
             app.post("/api/auth/login", ctx -> {
                 try {
@@ -209,9 +214,10 @@ public class TopografiaNetbeans {
                     String modelo = extractJsonVal(body, "modelo");
                     String tipo = extractJsonVal(body, "tipo");
                     String estado = extractJsonVal(body, "estado", "DISPONIBLE");
+                    String operador = extractJsonVal(body, "operador", "Sin asignar");
                     String calib = extractJsonVal(body, "fecha_vencimiento_calibracion", null);
 
-                    int id = dao.crearEquipo(usuarioId, serie, marca, modelo, tipo, estado, calib);
+                    int id = dao.crearEquipo(usuarioId, serie, marca, modelo, tipo, estado, operador, calib);
                     ctx.result("{\"success\":true,\"id\":" + id + "}");
                 } catch (Exception e) {
                     ctx.status(400).result("{\"success\":false,\"error\":\"" + escape(e.getMessage()) + "\"}");
@@ -272,33 +278,25 @@ public class TopografiaNetbeans {
             Graphics2D g = bi.createGraphics();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            // Fondo azul noche
             g.setColor(new Color(13, 27, 42));
             g.fillRect(0, 0, size, size);
 
-            // Marco redondeado dorado
             g.setColor(new Color(245, 158, 11));
             g.setStroke(new BasicStroke(size * 0.04f));
             g.drawRoundRect((int)(size * 0.06), (int)(size * 0.06), (int)(size * 0.88), (int)(size * 0.88), (int)(size * 0.28), (int)(size * 0.28));
 
-            // Círculo dial topográfico
             g.setColor(new Color(245, 158, 11));
             g.fillOval((int)(size * 0.22), (int)(size * 0.22), (int)(size * 0.56), (int)(size * 0.56));
 
-            // Interior visor oscuro
             g.setColor(new Color(15, 23, 42));
             g.fillOval((int)(size * 0.29), (int)(size * 0.29), (int)(size * 0.42), (int)(size * 0.42));
 
-            // Retícula / Cruz topográfica cian brillante
             g.setColor(new Color(56, 189, 248));
             g.setStroke(new BasicStroke(size * 0.025f));
             g.drawLine((int)(size * 0.16), (int)(size * 0.5), (int)(size * 0.84), (int)(size * 0.5));
             g.drawLine((int)(size * 0.5), (int)(size * 0.16), (int)(size * 0.5), (int)(size * 0.84));
-
-            // Círculo mira láser
             g.drawOval((int)(size * 0.4), (int)(size * 0.4), (int)(size * 0.2), (int)(size * 0.2));
 
-            // Punto central láser rojo
             g.setColor(new Color(239, 68, 68));
             g.fillOval((int)(size * 0.46), (int)(size * 0.46), (int)(size * 0.08), (int)(size * 0.08));
 
@@ -428,6 +426,9 @@ public class TopografiaNetbeans {
             "    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }\n" +
             "    html, body { min-height: 100vh; min-height: 100dvh; width: 100%; }\n" +
             "    body { color: #f8fafc; display: flex; flex-direction: column; background-size: cover; background-repeat: no-repeat; background-attachment: fixed; }\n" +
+            "    .login-body { background-position: center center; }\n" +
+            "    .dash-body { background-position: center center; }\n" +
+            "    .frentes-body { background-position: center center; }\n" +
             "    .navbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 18px; background: rgba(13, 27, 42, 0.95); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.12); flex-wrap: wrap; gap: 8px; }\n" +
             "    .logo { font-size: 1.15rem; font-weight: 800; color: #f59e0b; text-decoration: none; }\n" +
             "    .nav-links { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }\n" +
@@ -525,7 +526,7 @@ public class TopografiaNetbeans {
             "    <div class='nav-links'>\n" +
             "      <a href='/dashboard' class='nav-link active'>📦 Equipos</a>\n" +
             "      <a href='/frentes' class='nav-link'>📍 Frentes & Bitácora</a>\n" +
-            "      <button id='btnInstalarPWA' class='btn-instalar' onclick='instalarApp()'>📲 Instalar App</button>\n" +
+            "      <button class='btn-action' style='background:#f59e0b; color:#000;' onclick='sincronizarTablaExcel()'>🔄 Cargar Tabla de Obra</button>\n" +
             "      <button class='btn-action' style='background:#10b981;' onclick='abrirModalNuevoEquipo()'>+ Nuevo Equipo</button>\n" +
             "      <span style='font-size:0.85rem; color:#94a3b8; margin-left:8px;'>👤 <span id='userNombre' style='color:#f59e0b; font-weight:bold;'></span></span>\n" +
             "      <button class='btn-danger' onclick='eliminarMiCuenta()'>🗑️ Eliminar</button>\n" +
@@ -536,11 +537,11 @@ public class TopografiaNetbeans {
             "    <div class='card' style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;'>\n" +
             "      <div>\n" +
             "        <h2 style='color:#f8fafc; font-size:1.3rem;'>Parque de Equipos Topográficos</h2>\n" +
-            "        <p style='color:#94a3b8; font-size:0.85rem;'>Control de Calibraciones y Asignaciones</p>\n" +
+            "        <p style='color:#94a3b8; font-size:0.85rem;'>Control de Asignaciones y Operadores Responsables</p>\n" +
             "      </div>\n" +
             "      <div style='display:flex; gap:16px; font-size:0.9rem;'>\n" +
             "        <div>Total: <b id='cntTotal' style='color:#f59e0b; font-size:1.1rem;'>0</b></div>\n" +
-            "        <div>Operativos: <b id='cntOp' style='color:#4ade80; font-size:1.1rem;'>0</b></div>\n" +
+            "        <div>Asignados: <b id='cntOp' style='color:#4ade80; font-size:1.1rem;'>0</b></div>\n" +
             "      </div>\n" +
             "    </div>\n" +
             "    <div id='equiposGrid' class='grid-cards'></div>\n" +
@@ -550,11 +551,12 @@ public class TopografiaNetbeans {
             "      <div class='modal-header'><span>+ Registrar Nuevo Equipo</span><button class='modal-close' onclick='cerrarModalNuevoEquipo()'>&times;</button></div>\n" +
             "      <form onsubmit='crearEquipo(event)'>\n" +
             "        <div class='form-group'><label>Tipo</label><select id='eqTipo' class='form-control'><option>ESTACION_TOTAL</option><option>GPS_DIFERENCIAL</option><option>NIVEL_DIGITAL</option><option>NIVEL_OPTICO</option><option>DRON</option></select></div>\n" +
-            "        <div class='form-group'><label>Marca</label><input type='text' id='eqMarca' class='form-control' required></div>\n" +
-            "        <div class='form-group'><label>Modelo</label><input type='text' id='eqModelo' class='form-control' required></div>\n" +
-            "        <div class='form-group'><label>Serie</label><input type='text' id='eqSerie' class='form-control' required></div>\n" +
+            "        <div class='form-group'><label>Código / Serie</label><input type='text' id='eqSerie' placeholder='Ej: EQ-NIV-007' class='form-control' required></div>\n" +
+            "        <div class='form-group'><label>Marca</label><input type='text' id='eqMarca' placeholder='Ej: Ruide' class='form-control' required></div>\n" +
+            "        <div class='form-group'><label>Modelo</label><input type='text' id='eqModelo' placeholder='Ej: RL-C32' class='form-control' required></div>\n" +
+            "        <div class='form-group'><label>Operador Responsable</label><input type='text' id='eqOperador' placeholder='Nombre del topógrafo / cadenero' class='form-control'></div>\n" +
             "        <div class='form-group'><label>Vencimiento Calibración</label><input type='date' id='eqCalib' class='form-control'></div>\n" +
-            "        <button type='submit' class='btn-action' style='width:100%; padding:10px; background:#f59e0b; color:#000; font-weight:bold;'>Guardar</button>\n" +
+            "        <button type='submit' class='btn-action' style='width:100%; padding:10px; background:#f59e0b; color:#000; font-weight:bold;'>Guardar Equipo</button>\n" +
             "      </form>\n" +
             "    </div>\n" +
             "  </div>\n" +
@@ -574,25 +576,34 @@ public class TopografiaNetbeans {
             "    const grid = document.getElementById('equiposGrid');\n" +
             "    grid.innerHTML = '';\n" +
             "    document.getElementById('cntTotal').innerText = data.length;\n" +
-            "    document.getElementById('cntOp').innerText = data.length;\n" +
+            "    const asignados = data.filter(e => e.estado === 'ASIGNADO').length;\n" +
+            "    document.getElementById('cntOp').innerText = asignados;\n" +
             "    if (data.length === 0) {\n" +
-            "      grid.innerHTML = '<div style=\"grid-column: 1/-1; text-align:center; color:#94a3b8; padding:30px;\">No hay equipos registrados. Presiona <b>+ Nuevo Equipo</b>.</div>';\n" +
+            "      grid.innerHTML = '<div style=\"grid-column: 1/-1; text-align:center; color:#94a3b8; padding:30px;\">No hay equipos. Presiona el botón amarillo arriba: <b>🔄 Cargar Tabla de Obra</b>.</div>';\n" +
             "      return;\n" +
             "    }\n" +
             "    data.forEach(e => {\n" +
+            "      const badgeClass = e.estado === 'ASIGNADO' ? 'badge-ok' : 'badge';\n" +
             "      grid.innerHTML += `<div class='card' style='margin-bottom:0;'>\n" +
-            "        <div style='display:flex; justify-content:space-between; margin-bottom:8px;'><span style='font-size:0.75rem; color:#94a3b8;'>${e.tipo}</span><span class='badge badge-ok'>${e.estado}</span></div>\n" +
+            "        <div style='display:flex; justify-content:space-between; margin-bottom:8px;'><span style='font-size:0.75rem; color:#94a3b8;'>${e.tipo}</span><span class='badge ${badgeClass}'>${e.estado}</span></div>\n" +
             "        <div style='font-size:1.15rem; font-weight:700; color:#f8fafc;'>${e.marca} ${e.modelo}</div>\n" +
-            "        <div style='font-size:0.85rem; color:#94a3b8; margin-bottom:12px;'>S/N: ${e.serie}</div>\n" +
-            "        <div style='font-size:0.8rem; background:rgba(0,0,0,0.3); padding:8px; border-radius:6px;'>\n" +
-            "          <div>📍 Frente: <b style='color:#38bdf8;'>${e.frente_nombre || 'Asignado'}</b></div>\n" +
-            "          <div>📅 Calibración: <b style='color:#f59e0b;'>${e.fecha_vencimiento_calibracion || 'Al día'}</b></div>\n" +
+            "        <div style='font-size:0.85rem; color:#f59e0b; font-weight:bold; margin-bottom:12px;'>Código: ${e.serie}</div>\n" +
+            "        <div style='font-size:0.82rem; background:rgba(0,0,0,0.35); padding:10px; border-radius:8px;'>\n" +
+            "          <div style='margin-bottom:4px;'>📍 Frente: <b style='color:#38bdf8;'>${e.frente_nombre || 'Bodega'}</b></div>\n" +
+            "          <div style='margin-bottom:4px;'>👷‍♂️ Operador: <b style='color:#a78bfa;'>${e.operador || 'Sin asignar'}</b></div>\n" +
+            "          <div>📅 Calibración: <b style='color:#fcd34d;'>${e.fecha_vencimiento_calibracion || 'Al día'}</b></div>\n" +
             "        </div></div>`;\n" +
             "    });\n" +
             "  }\n" +
+            "  async function sincronizarTablaExcel() {\n" +
+            "    if (!confirm('¿Deseas cargar la tabla oficial de tu obra (Cogua, Tanque, La Fuente, etc.)?')) return;\n" +
+            "    const r = await fetch('/api/admin/sincronizar-obra?usuario_id=' + currentUser.id);\n" +
+            "    const d = await r.json();\n" +
+            "    if (d.success) { alert('✅ ¡Tabla oficial de obra cargada exitosamente!'); cargarEquipos(); }\n" +
+            "  }\n" +
             "  async function crearEquipo(e) {\n" +
             "    e.preventDefault();\n" +
-            "    const body = { usuario_id: currentUser.id, tipo: document.getElementById('eqTipo').value, marca: document.getElementById('eqMarca').value, modelo: document.getElementById('eqModelo').value, serie: document.getElementById('eqSerie').value, fecha_vencimiento_calibracion: document.getElementById('eqCalib').value };\n" +
+            "    const body = { usuario_id: currentUser.id, tipo: document.getElementById('eqTipo').value, marca: document.getElementById('eqMarca').value, modelo: document.getElementById('eqModelo').value, serie: document.getElementById('eqSerie').value, operador: document.getElementById('eqOperador').value, fecha_vencimiento_calibracion: document.getElementById('eqCalib').value };\n" +
             "    const r = await fetch('/api/equipos', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });\n" +
             "    if ((await r.json()).success) { cerrarModalNuevoEquipo(); cargarEquipos(); }\n" +
             "  }\n" +
@@ -616,7 +627,7 @@ public class TopografiaNetbeans {
             "      <button class='btn-action' style='background:#64748b;' onclick='location.href=\"/dashboard\"'>Volver</button>\n" +
             "    </div>\n" +
             "  </div>\n" +
-            "  <div class='content-container'><div class='card'><h2 style='color:#f8fafc; font-size:1.3rem; margin-bottom:12px;'>📍 Frentes de Obra</h2><div id='frentesGrid' class='grid-cards'></div></div></div>\n" +
+            "  <div class='content-container'><div class='card'><h2 style='color:#f8fafc; font-size:1.3rem; margin-bottom:12px;'>📍 Frentes de Obra Oficiales</h2><div id='frentesGrid' class='grid-cards'></div></div></div>\n" +
             "<script>\n" +
             "  let currentUser = JSON.parse(localStorage.getItem('topo_user') || '{}');\n" +
             "  window.onload = async () => {\n" +
